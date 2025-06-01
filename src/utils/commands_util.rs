@@ -1,0 +1,4 @@
+struct CommandsUtil;
+
+impl CommandsUtil {
+}

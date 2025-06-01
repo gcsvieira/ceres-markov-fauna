@@ -1,0 +1,13 @@
+{
+  "server_id": 111,
+  "lone_words":["lone word1", "lone word 2", "lone word 3"],
+  "words": {
+    "hello": {
+      "next_words": {
+        "world": 1,
+        "brother": 2,
+        "bro": 5
+      }
+    }
+  }
+}

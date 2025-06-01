@@ -1,0 +1,6 @@
+{
+  "server_id": 111,
+  "prefix": ".",
+  "lone_word_prob": 25,
+  "consider_frequency": true
+}
