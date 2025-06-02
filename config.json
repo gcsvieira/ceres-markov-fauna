@@ -1,7 +1,7 @@
 {
   "server_id": 111,
-  "prefix": "cf",
-  "command_indicator": "!",
+  "prefix": "cmf",
+  "command_indicator": ".",
   "lone_word_prob": 25,
   "consider_frequency": true
 }

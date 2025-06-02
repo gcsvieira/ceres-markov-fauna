@@ -1,7 +1,5 @@
 use crate::utils::file_utils::FileOperation;
-use crate::discord::answers::Answers;
 use crate::discord::commands::Commands;
-use crate::discord::message_handler::MessageHandler;
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready},
@@ -15,22 +13,16 @@ impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let pref_com = format!("{}{}", FileOperation::read_command(), FileOperation::read_prefix());
         let after_prefix: (Option<String>, Option<String>, Option<String>);
-        let answer;
 
         if !msg.content.contains(pref_com.as_str()) {
             return;
         }
-        
-        after_prefix = parse_message(pref_com, &msg.content);
-        match MessageHandler::parse_command(after_prefix.1.unwrap().as_str()) {
-            Commands::Help => answer = MessageHandler::send_answer(&Answers::Help),
-            Commands::Ping => answer = MessageHandler::send_answer(&Answers::Ping),
-            Commands::ResetTable => answer = MessageHandler::send_answer(&Answers::ResetTable),
-            Commands::TableStatus => answer = MessageHandler::send_answer(&Answers::TableStatus),
-            Commands::Version => answer = MessageHandler::send_answer(&Answers::Version),
-            _ => answer = MessageHandler::send_answer(&Answers::Unknown),
-        }
 
+        after_prefix = parse_message(pref_com, &msg.content);
+        let answer= Commands::parse_to_command(&after_prefix.1)
+            .execute_command(&after_prefix.2)
+            .command_to_answer()
+            .send_answer(after_prefix.2);
         send_answer(ctx, msg, answer).await;
     }
 
