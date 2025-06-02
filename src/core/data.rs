@@ -2,17 +2,18 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Formatter;
 
-pub struct MarkovTable {
-    pub table: HashMap<String, HashMap<String, u32>>,
+
+pub(crate) struct MarkovTable {
+    pub(crate) table: HashMap<String, HashMap<String, u32>>,
 }
 
-pub struct Sentence {
-    pub sentence: String,
-    pub words: Vec<String>,
+pub(crate) struct Sentence {
+    pub(crate) sentence: String,
+    pub(crate) words: Vec<String>,
 }
 
 impl Sentence {
-    pub fn divide(&mut self) -> () {
+    pub(crate) fn divide(&mut self) -> () {
         self.words
             .push(self.sentence
                 .split_whitespace()
@@ -21,7 +22,7 @@ impl Sentence {
 }
 
 impl MarkovTable {
-    pub fn add(&mut self, words: Vec<String>) -> () {
+    pub(crate) fn add(&mut self, words: Vec<String>) -> () {
         for i in 0..words.len() - 1 {
             let current_word = words[i].clone();
             let next_word = words[i + 1].clone();
