@@ -1,4 +1,3 @@
-use crate::discord::commands::Commands;
 
 pub(crate) enum Answers {
     Help,
@@ -10,11 +9,12 @@ pub(crate) enum Answers {
     Echo,
     ChangePrefix,
     ChangeCommandIndicator,
+    Hello,
     Unknown,
 }
 
 impl Answers {
-    pub(crate) fn send_answer(&self, desired: Option<String>) -> String {
+    pub(crate) fn output_answer(&self, desired: Option<String>) -> String {
         match self {
             Self::Help => "Aah... I don't know how to help you yet...".to_string(),
             Self::Welcome => "Hello!! I'm happy to join this server!".to_string(),
@@ -25,6 +25,7 @@ impl Answers {
             Self::Version => format!("We're currently on version {}!", env!("CARGO_PKG_VERSION").to_string()),
             Self::ChangeCommandIndicator => format!("Alright! The new command indicator for your server will be \"{}\"!", desired.unwrap()),
             Self::ChangePrefix => format!("Okay, your new prefix will now be \"{}\"!", desired.unwrap()),
+            Self::Hello => "Hello!!".to_string(),
             _ => "I... I can't understand that...".to_string(),
         }
     }

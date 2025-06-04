@@ -11,6 +11,7 @@ const ECHO: &str = "echo";
 const PING: &str = "ping";
 const CHANGE_PREFIX: &str = "change-prefix";
 const CHANGE_COMMAND_INDICATOR: &str = "change-com-indicator";
+const HELLO: &str = "hello";
 const UNKNOWN: &str = "unknown";
 
 pub(crate) enum Commands {
@@ -24,13 +25,16 @@ pub(crate) enum Commands {
     Ping,
     ChangePrefix,
     ChangeCommandIndicator,
+    Hello,
     Unknown,
 }
 
 impl Commands {
 
-    pub(crate) fn parse_to_command(command: &Option<String>) -> Commands {
-        match command.clone().unwrap().as_str() {
+    pub(crate) fn parse_to_command(command: Option<String>) -> Commands {
+        let com = command.unwrap_or(UNKNOWN.to_string());
+        
+        match com.as_str() {
             HELP => Self::Help,
             VERSION => Self::Version,
             LONE_WORD_PROB => Self::LoneWordProb,
@@ -41,6 +45,7 @@ impl Commands {
             CHANGE_PREFIX => Self::ChangePrefix,
             CHANGE_COMMAND_INDICATOR => Self::ChangeCommandIndicator,
             PING => Self::Ping,
+            s if s.contains(HELLO) => Self::Hello,
             _ => Self::Unknown,
         }
     }
@@ -57,6 +62,7 @@ impl Commands {
             Self::Ping => PING.to_string(),
             Self::ChangePrefix => CHANGE_PREFIX.to_string(),
             Self::ChangeCommandIndicator => CHANGE_COMMAND_INDICATOR.to_string(),
+            Self::Hello => HELLO.to_string(),
             _ => UNKNOWN.to_string(),
         }
     }
@@ -70,6 +76,7 @@ impl Commands {
             Self::Version => Answers::Version,
             Self::ChangePrefix => Answers::ChangePrefix,
             Self::ChangeCommandIndicator => Answers::ChangeCommandIndicator,
+            Self::Hello => Answers::Hello,
             _ => Answers::Unknown,
         }
     }

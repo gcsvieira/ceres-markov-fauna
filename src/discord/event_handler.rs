@@ -1,29 +1,21 @@
-use crate::utils::file_utils::FileOperation;
-use crate::discord::commands::Commands;
+use crate::core::message_handler::MessageHandler;
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready},
     prelude::*,
 };
+use serenity::all::ChannelId;
 
 pub(crate) struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
-        let pref_com = format!("{}{}", FileOperation::read_command(), FileOperation::read_prefix());
-        let after_prefix: (Option<String>, Option<String>, Option<String>);
-
-        if !msg.content.contains(pref_com.as_str()) {
-            return;
+        let answer = process_message(msg.content);
+        
+        if answer.is_some() {
+            send_message(answer.unwrap(), ctx, msg.channel_id).await;
         }
-
-        after_prefix = parse_message(pref_com, &msg.content);
-        let answer= Commands::parse_to_command(&after_prefix.1)
-            .execute_command(&after_prefix.2)
-            .command_to_answer()
-            .send_answer(after_prefix.2);
-        send_answer(ctx, msg, answer).await;
     }
 
     async fn ready(&self, _: Context, ready: Ready) {
@@ -31,23 +23,20 @@ impl EventHandler for Handler {
     }
 }
 
-async fn send_answer(ctx: Context, msg: Message, answer: String) {
-    msg.channel_id
-        .say(&ctx.http, answer)
-        .await
-        .expect("Error sending message!");
+fn process_message(msg: String) -> Option<String> {
+    let mut msg_handler: MessageHandler = MessageHandler::new(msg);
+    
+    msg_handler
+        .check_msg_type()
+        .parse()
 }
 
-fn parse_message(pref_com: String, msg: &String) -> (Option<String>, Option<String>, Option<String>) {
-    let after_prefix = match msg.strip_prefix(pref_com.as_str()) {
-        Some(str) => str,
-        None => return (None, None, None),
-    };
-
-    let (command, content) = after_prefix.split_once(' ').unwrap_or((after_prefix, ""));
-
-    let command = if command.is_empty() { None } else { Some(command.to_string()) };
-    let content = if content.is_empty() { None } else { Some(content.to_string()) };
-
-    (Some(pref_com), command, content)
+/// Sends a message to a channel on discord.
+/// 
+/// Primarily assumes you're answering to a request, which means active calls from the bot might have to be sent through other methods.
+async fn send_message(content: String, ctx: Context, channel_id: ChannelId) {
+    channel_id
+        .say(&ctx.http, content)
+        .await
+        .expect("Error sending message!");
 }

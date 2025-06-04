@@ -1,6 +1,7 @@
 use crate::discord::event_handler;
 use serenity::prelude::*;
 use std::env;
+use dotenv::dotenv;
 
 mod core;
 mod discord;
@@ -12,6 +13,7 @@ use serenity::Client;
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
