@@ -1,7 +1,9 @@
+use std::io;
 use crate::discord::answers::Answers;
-use crate::utils::file_utils::FileOperation;
+use crate::storage::srv_config_model::Config;
+use crate::utils::file_utils::FileOperations;
 
-const HELP: &str = "help";
+pub(super) const HELP: &str = "help";
 const VERSION: &str = "version";
 const LONE_WORD_PROB: &str = "lone-word-prob";
 const CONSIDER_FREQUENCY: &str = "consider-frequency";
@@ -12,7 +14,6 @@ const PING: &str = "ping";
 const CHANGE_PREFIX: &str = "change-prefix";
 const CHANGE_COMMAND_INDICATOR: &str = "change-com-indicator";
 const HELLO: &str = "hello";
-const UNKNOWN: &str = "unknown";
 
 pub(crate) enum Commands {
     Help,
@@ -32,7 +33,7 @@ pub(crate) enum Commands {
 impl Commands {
 
     pub(crate) fn parse_to_command(command: Option<String>) -> Commands {
-        let com = command.unwrap_or(UNKNOWN.to_string());
+        let com = command.unwrap_or("unknown".to_string());
         
         match com.as_str() {
             HELP => Self::Help,
@@ -50,23 +51,6 @@ impl Commands {
         }
     }
 
-    pub(crate) fn parse_to_str(&self) -> String {
-        match self {
-            Self::Help => HELP.to_string(),
-            Self::Version => VERSION.to_string(),
-            Self::LoneWordProb => LONE_WORD_PROB.to_string(),
-            Self::ConsiderFrequency => CONSIDER_FREQUENCY.to_string(),
-            Self::TableStatus => TABLE_STATUS.to_string(),
-            Self::ResetTable => RESET_TABLE.to_string(),
-            Self::Echo => ECHO.to_string(),
-            Self::Ping => PING.to_string(),
-            Self::ChangePrefix => CHANGE_PREFIX.to_string(),
-            Self::ChangeCommandIndicator => CHANGE_COMMAND_INDICATOR.to_string(),
-            Self::Hello => HELLO.to_string(),
-            _ => UNKNOWN.to_string(),
-        }
-    }
-
     pub(crate) fn command_to_answer(&self) -> Answers {
         match self {
             Self::Help => Answers::Help,
@@ -81,24 +65,51 @@ impl Commands {
         }
     }
     
-    pub(crate) fn execute_command(&self, desired: &Option<String>) -> &Commands {
+    pub(crate) fn execute_command(&self, content: &Option<String>, guild_id: u64) -> Result<&Commands, io::Error> {
         match self { 
             Commands::ChangeCommandIndicator => {
-                FileOperation::change_command_ind(desired
-                    .clone()
-                    .unwrap()
-                    .chars()
-                    .next()
-                    .unwrap());
-                &Commands::ChangeCommandIndicator
+                Config::new(guild_id)?
+                    .change_command_ind(content.clone()
+                        .unwrap()
+                        .pop()
+                        .unwrap())
+                    .save_to_config().expect("Failed to change the command indicator for the server");
+
+
+                Ok(&Commands::ChangeCommandIndicator)
             }
             Commands::ChangePrefix => {
-                FileOperation::change_prefix(desired.clone()
-                    .unwrap()
-                    .to_string());
-                &Commands::ChangePrefix
+                Config::new(guild_id)?
+                    .change_prefix(content
+                        .clone()
+                        .unwrap()
+                        .to_string())
+                    .save_to_config().expect("Failed to change the prefix for server: {}");
+
+                Ok(&Commands::ChangePrefix)
             }
-            _ => self
+            Commands::Echo => {
+                // TODO: find a way to implement echo
+                Ok(&Commands::Echo)
+            }
+            _ => Ok(self)
+        }
+    }
+
+    pub(crate) fn describe_command(&self) -> String {
+        match self {
+            Self::Help => format!("- **{HELP}**: You'll get this message with all the commands you need!"),
+            Self::Version => format!("- **{VERSION}**: I will send you my current version."),
+            Self::LoneWordProb => format!("- **{LONE_WORD_PROB} <0...100>**: this will change the frequency of lone words on your sentences (words not connected to any sentence)!"),
+            Self::ConsiderFrequency => format!("- **{CONSIDER_FREQUENCY} <yes/no>**: when generating sentences, this will take the amount of times a word has appeared in relation to its previous word into consideration!"),
+            Self::TableStatus => format!("- **{TABLE_STATUS}**: Current status of your table! How many words and words next to it exists!"),
+            Self::ResetTable => format!("- **{RESET_TABLE}**: This will remove all the words stored on this server's table! This is unrecoverable so you be careful, alright?"),
+            Self::Echo => format!("- **{ECHO} <msg>**: I will repeat what you say! Don't make me say weird stuff okay?"),
+            Self::Ping => format!("- **{PING}**: I will reply you with a pong! Hehehe"),
+            Self::ChangePrefix => format!("- **{CHANGE_PREFIX}**: This will change the prefix you use to call me. If your prefix is \"cf!\", then prefix is \"cf\"!"),
+            Self::ChangeCommandIndicator => format!("- **{CHANGE_COMMAND_INDICATOR}**: This is the command indicator of your prefix! If your prefix is \"cf!\" then the indicator is \"!\"!"),
+            Self::Hello => format!("- **{HELLO}**: I'll talk to you!!"),
+            _ => "- It's when you a bit creative with your wording and I couldn't get it!".to_string(),
         }
     }
 }
