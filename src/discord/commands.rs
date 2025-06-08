@@ -4,20 +4,22 @@ use crate::storage::srv_config_model::Config;
 use crate::utils::file_utils::FileOperations;
 
 pub(super) const HELP: &str = "help";
-const VERSION: &str = "version";
-const LONE_WORD_PROB: &str = "lone-word-prob";
-const CONSIDER_FREQUENCY: &str = "consider-frequency";
-const TABLE_STATUS: &str = "table-status";
-const RESET_TABLE: &str = "reset-table";
-const ECHO: &str = "echo";
-const PING: &str = "ping";
-const CHANGE_PREFIX: &str = "change-prefix";
-const CHANGE_COMMAND_INDICATOR: &str = "change-com-indicator";
-const HELLO: &str = "hello";
+pub(super) const VERSION: &str = "version";
+pub(super) const LONE_WORD_PROB: &str = "lone-word-prob";
+pub(super) const CONSIDER_FREQUENCY: &str = "consider-frequency";
+pub(super) const TABLE_STATUS: &str = "table-status";
+pub(super) const RESET_TABLE: &str = "reset-table";
+pub(crate) const ECHO: &str = "echo";
+pub(super) const PING: &str = "ping";
+pub(super) const CHANGE_PREFIX: &str = "change-prefix";
+pub(super) const COMMANDS: &str = "commands";
+pub(super) const CHANGE_COMMAND_INDICATOR: &str = "change-com-indicator";
+pub(super) const HELLO: &str = "hello";
 
 pub(crate) enum Commands {
     Help,
     Version,
+    Commands,
     LoneWordProb,
     ConsiderFrequency,
     TableStatus,
@@ -37,6 +39,7 @@ impl Commands {
         
         match com.as_str() {
             HELP => Self::Help,
+            COMMANDS => Self::Commands,
             VERSION => Self::Version,
             LONE_WORD_PROB => Self::LoneWordProb,
             CONSIDER_FREQUENCY => Self::ConsiderFrequency,
@@ -55,9 +58,11 @@ impl Commands {
         match self {
             Self::Help => Answers::Help,
             Self::Ping => Answers::Ping,
+            Self::Commands => Answers::Commands,
             Self::ResetTable => Answers::ResetTable,
             Self::TableStatus => Answers::TableStatus,
             Self::Version => Answers::Version,
+            Self::Echo => Answers::Echo,
             Self::ChangePrefix => Answers::ChangePrefix,
             Self::ChangeCommandIndicator => Answers::ChangeCommandIndicator,
             Self::Hello => Answers::Hello,
@@ -68,48 +73,26 @@ impl Commands {
     pub(crate) fn execute_command(&self, content: &Option<String>, guild_id: u64) -> Result<&Commands, io::Error> {
         match self { 
             Commands::ChangeCommandIndicator => {
-                Config::new(guild_id)?
+                Config::from_file(guild_id)?
                     .change_command_ind(content.clone()
                         .unwrap()
                         .pop()
                         .unwrap())
-                    .save_to_config().expect("Failed to change the command indicator for the server");
-
-
+                    .save_to_file(guild_id).expect("Failed to change the command indicator for the server");
+                
                 Ok(&Commands::ChangeCommandIndicator)
             }
             Commands::ChangePrefix => {
-                Config::new(guild_id)?
+                Config::from_file(guild_id)?
                     .change_prefix(content
                         .clone()
                         .unwrap()
                         .to_string())
-                    .save_to_config().expect("Failed to change the prefix for server: {}");
+                    .save_to_file(guild_id).expect("Failed to change the prefix for server: {}");
 
                 Ok(&Commands::ChangePrefix)
             }
-            Commands::Echo => {
-                // TODO: find a way to implement echo
-                Ok(&Commands::Echo)
-            }
             _ => Ok(self)
-        }
-    }
-
-    pub(crate) fn describe_command(&self) -> String {
-        match self {
-            Self::Help => format!("- **{HELP}**: You'll get this message with all the commands you need!"),
-            Self::Version => format!("- **{VERSION}**: I will send you my current version."),
-            Self::LoneWordProb => format!("- **{LONE_WORD_PROB} <0...100>**: this will change the frequency of lone words on your sentences (words not connected to any sentence)!"),
-            Self::ConsiderFrequency => format!("- **{CONSIDER_FREQUENCY} <yes/no>**: when generating sentences, this will take the amount of times a word has appeared in relation to its previous word into consideration!"),
-            Self::TableStatus => format!("- **{TABLE_STATUS}**: Current status of your table! How many words and words next to it exists!"),
-            Self::ResetTable => format!("- **{RESET_TABLE}**: This will remove all the words stored on this server's table! This is unrecoverable so you be careful, alright?"),
-            Self::Echo => format!("- **{ECHO} <msg>**: I will repeat what you say! Don't make me say weird stuff okay?"),
-            Self::Ping => format!("- **{PING}**: I will reply you with a pong! Hehehe"),
-            Self::ChangePrefix => format!("- **{CHANGE_PREFIX}**: This will change the prefix you use to call me. If your prefix is \"cf!\", then prefix is \"cf\"!"),
-            Self::ChangeCommandIndicator => format!("- **{CHANGE_COMMAND_INDICATOR}**: This is the command indicator of your prefix! If your prefix is \"cf!\" then the indicator is \"!\"!"),
-            Self::Hello => format!("- **{HELLO}**: I'll talk to you!!"),
-            _ => "- It's when you a bit creative with your wording and I couldn't get it!".to_string(),
         }
     }
 }

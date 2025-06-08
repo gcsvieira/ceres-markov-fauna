@@ -6,13 +6,15 @@ use crate::storage::srv_config_model::Config;
 pub(crate) struct MessageHandler {
     content: String,
     msg_type: Option<char>,
+    guild_id: u64,
 }
 
 impl MessageHandler {
-    pub(crate) fn new(content: String) -> Self {
+    pub(crate) fn new(content: String, guild_id: u64) -> Self {
         Self {
             content,
             msg_type: None,
+            guild_id,
         }
     }
     
@@ -23,9 +25,9 @@ impl MessageHandler {
     /// - 's' stands for 'store'. We will basically store anything that isn't the 2 types above
     /// 
     /// [`msg_type`]: MessageHandler
-    pub(crate) fn check_msg_type(&mut self, guild_id: u64) -> Result<&mut Self, io::Error> {
+    pub(crate) fn check_msg_type(&mut self) -> Result<&mut Self, io::Error> {
         self.msg_type = Some(match &self {
-            msg if msg.content.contains(current_trigger(guild_id)?.as_str()) => 't', // -> trigger
+            msg if msg.content.contains(current_trigger(self.guild_id)?.as_str()) => 't', // -> trigger
             msg if msg.content.contains(&PROPERTIES.bot.id) => 'm', // -> mention
             _ => 's'
         });
@@ -33,17 +35,17 @@ impl MessageHandler {
         Ok(self)
     }
 
-    pub(crate) fn parse(&mut self, guild_id: u64) -> Result<Option<String>, io::Error> {
+    pub(crate) fn parse(&mut self) -> Result<Option<String>, io::Error> {
         // With the msg_type set, we can just redirect to the corresponding data processing function
         // parse() will receive a String containing the result of the command used. That string will be what the bot will respond to the server
         match self.msg_type {
-            Some('t') => Ok(self.using_command(guild_id)?),
-            Some('m') => Ok(self.using_mention(guild_id)?),
-            _ => Ok(self.store_data(guild_id)?)
+            Some('t') => Ok(self.using_command()?),
+            Some('m') => Ok(self.using_mention()?),
+            _ => Ok(self.store_data()?)
         }
     }
 
-    fn using_command(&self, guild_id: u64) -> Result<Option<String>, io::Error> {
+    fn using_command(&self) -> Result<Option<String>, io::Error> {
         // We're doing a lot of things here.
         // 1. We create an after_prefix variable
         // 2. A few things will happen before value attribution:
@@ -53,7 +55,7 @@ impl MessageHandler {
         //      2.4 If, after stripping the pattern there's nothing left, then that means 
         //          only the prefix was sent as a message (message was "cf!" instead of "cf!help") so we return None to that Option<>
         //      2.5 In the end, after_prefix will be either a &str or return None
-        let after_prefix = match self.content.strip_prefix(current_trigger(guild_id)?.as_str()) { 
+        let after_prefix = match self.content.strip_prefix(current_trigger(self.guild_id)?.as_str()) { 
             Some(str) => str,
             None => return Ok(None),
         };
@@ -70,12 +72,12 @@ impl MessageHandler {
         let content = if content.is_empty() { None } else { Some(content.to_string()) };
 
         Ok(Some(Commands::parse_to_command(command)
-            .execute_command(&content, guild_id)?
+            .execute_command(&content, self.guild_id)?
             .command_to_answer()
-            .output_answer(content)))
+            .output_answer(content, self.guild_id)?))
     }
 
-    fn using_mention(&self, guild_id: u64) -> Result<Option<String>, io::Error> {
+    fn using_mention(&self) -> Result<Option<String>, io::Error> {
         let after_prefix = match self.content.strip_prefix(&PROPERTIES.bot.id) {
             Some(str) => str.trim(),
             None => return Ok(None),
@@ -89,18 +91,18 @@ impl MessageHandler {
         let content = if content.is_empty() { None } else { Some(content.to_string()) };
 
         Ok(Some(Commands::parse_to_command(command)
-            .execute_command(&content, guild_id)?
+            .execute_command(&content, self.guild_id)?
             .command_to_answer()
-            .output_answer(content)))
+            .output_answer(content, self.guild_id)?))
     }
 
-    fn store_data(&self, guild_id: u64) -> Result<Option<String>, io::Error> {
+    fn store_data(&self) -> Result<Option<String>, io::Error> {
         Ok(None)
     }
 }
 
 fn current_trigger(guild_id: u64) -> Result<String, io::Error> {
-    let config = Config::new(guild_id)?;
+    let config = Config::from_file(guild_id)?;
     
     // Getting prefix and command from the server's configuration file
     Ok(format!("{}{}", config.prefix, config.command_indicator))
