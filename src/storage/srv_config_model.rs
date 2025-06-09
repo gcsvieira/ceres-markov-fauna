@@ -49,7 +49,6 @@ impl Config {
 }
 
 
-
 impl FileOperations for Config {
     fn srv_file_path(guild_id: u64) -> String {
         format!("srv_storage/{}/srv_config.json", guild_id)

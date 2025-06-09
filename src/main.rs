@@ -16,7 +16,7 @@ use serenity::Client;
 async fn main() {
     dotenv().ok();
     env_logger::init();
-    
+
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
     let intents = GatewayIntents::GUILDS |
         GatewayIntents::GUILD_MESSAGES |

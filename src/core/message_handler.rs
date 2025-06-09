@@ -1,7 +1,10 @@
+use std::collections::{HashMap};
 use std::io;
 use crate::discord::commands::Commands;
 use crate::storage::app_properties_model::PROPERTIES;
 use crate::storage::srv_config_model::Config;
+use crate::storage::srv_markov_model::{Markov, WordEntry};
+use crate::utils::file_utils::FileOperations;
 
 pub(crate) struct MessageHandler {
     content: String,
@@ -55,7 +58,7 @@ impl MessageHandler {
         //      2.4 If, after stripping the pattern there's nothing left, then that means 
         //          only the prefix was sent as a message (message was "cf!" instead of "cf!help") so we return None to that Option<>
         //      2.5 In the end, after_prefix will be either a &str or return None
-        let after_prefix = match self.content.strip_prefix(current_trigger(self.guild_id)?.as_str()) { 
+        let after_prefix = match self.content.strip_prefix(current_trigger(self.guild_id)?.as_str()) {
             Some(str) => str,
             None => return Ok(None),
         };
@@ -82,7 +85,7 @@ impl MessageHandler {
             Some(str) => str.trim(),
             None => return Ok(None),
         };
-        
+
         // " command content"
 
         let (command, content) = after_prefix.split_once(' ').unwrap_or((after_prefix, ""));
@@ -97,6 +100,34 @@ impl MessageHandler {
     }
 
     fn store_data(&self) -> Result<Option<String>, io::Error> {
+        let mut markov = match Markov::from_file(self.guild_id) {
+            Ok(markov) => markov,
+            Err(e) => return Err(e),
+        };
+
+        if self.content.is_empty() {
+            return Ok(None);
+        }
+
+        let words: Vec<String> = self.content
+            .split_whitespace()
+            .map(String::from)
+            .collect();
+        
+        if words.len() < 2 { 
+            markov.add_lone_word(words);
+        } else {
+
+            for i in 0..(words.len() - 1) {
+                let current_word = words[i].clone();
+                let next_word = words[i + 1].clone();
+
+                markov.add_word_pair(current_word, next_word);
+            }
+        }
+        
+        markov.save_to_file(self.guild_id)?;
+        
         Ok(None)
     }
 }

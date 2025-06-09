@@ -1,4 +1,0 @@
-struct CommandsUtil;
-
-impl CommandsUtil {
-}
