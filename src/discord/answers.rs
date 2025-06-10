@@ -1,6 +1,8 @@
 use std::io;
-use crate::discord::commands::{HELP, VERSION, COMMANDS, LONE_WORD_PROB, CONSIDER_FREQUENCY, TABLE_STATUS, RESET_TABLE, ECHO, PING, CHANGE_PREFIX, CHANGE_COMMAND_INDICATOR, HELLO};
+use crate::discord::commands::{HELP, VERSION, COMMANDS, LONE_WORD_PROB, GENERATE, CONSIDER_FREQUENCY, TABLE_STATUS, RESET_TABLE, ECHO, PING, CHANGE_PREFIX, CHANGE_COMMAND_INDICATOR, HELLO};
 use crate::storage::srv_config_model::Config;
+
+const UNKNOWN_ANS: &str = "I... I can't understand that...";
 pub(crate) enum Answers {
     Help,
     Welcome,
@@ -14,6 +16,7 @@ pub(crate) enum Answers {
     ChangeCommandIndicator,
     Hello,
     Unknown,
+    Generate,
 }
 
 impl Answers {
@@ -33,13 +36,14 @@ impl Answers {
                 "Alright! The new command indicator for your server will be \"{}\"!",
                 desired.unwrap())
             ),
-            Self::Echo => Ok(desired.unwrap()),
+            Self::Echo => Ok(desired.unwrap_or("You didn't type anything!! Are you trying to trick me?!".to_string())),
             Self::ChangePrefix => Ok(format!(
                 "Okay, your new prefix will now be \"{}\"!",
                 desired.unwrap()
             )),
             Self::Hello => Ok("Hello!!".to_string()),
-            _ => Ok("I... I can't understand that...".to_string()),
+            Self::Generate => Ok(desired.unwrap_or(UNKNOWN_ANS.to_string())),
+            _ => Ok(UNKNOWN_ANS.to_string())
         }
     }
 
@@ -55,6 +59,7 @@ impl Answers {
             - **{RESET_TABLE}**: This will remove all the words stored on this server's table! This is unrecoverable so you be careful, alright?\n\
             - **{ECHO} <msg>**: I will repeat what you say! Don't make me say weird stuff okay?\n\
             - **{PING}**: I will reply you with a pong! Hehehe\n\
+            - **{GENERATE}**: I will generate a random sentence!\n\
             - **{CHANGE_PREFIX}**: This will change the prefix you use to call me. If your prefix is \"cf!\", then prefix is \"cf\"!\n\
             - **{CHANGE_COMMAND_INDICATOR}**: This is the command indicator of your prefix! If your prefix is \"cf!\" then the indicator is \"!\"!\n\
             - **{HELLO}**: I'll talk to you!!",

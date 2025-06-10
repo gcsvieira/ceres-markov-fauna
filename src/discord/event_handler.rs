@@ -63,8 +63,18 @@ impl EventHandler for Handler {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
+        // Won't do anything if the message is from a bot.
         if msg.author.bot { return }
         
+        // I need two kinds of message processing:
+        //  -> I need a string in case I need to answer
+        //        The current structure satisfies that.
+        //  -> I need the command processing to happen
+        //        The current structure struggles with this because even though I have a place to process
+        //        commands I don't have something to send the message back in case that processing involved
+        //        a string.
+        //  
+        //   -> The solution is to make process command return an optional string while at the same time
         let answer =
             process_message(msg.content, msg.guild_id.unwrap().get()).unwrap_or_else(|e| {
                 error!("There was an error regarding file io: {}", e);
@@ -75,6 +85,8 @@ impl EventHandler for Handler {
             answer_message(answer.unwrap(), ctx, msg.channel_id).await;
         }
     }
+    
+    // TODO: create sentence generation algorithm
 
     async fn ready(&self, _: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
