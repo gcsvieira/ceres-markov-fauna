@@ -1,12 +1,8 @@
-use rand::distributions::Distribution;
 use std::io;
-use rand::distributions::WeightedIndex;
-use rand::prelude::SliceRandom;
-use rand::Rng;
 use crate::discord::answers::Answers;
 use crate::storage::srv_config_model::Config;
-use crate::storage::srv_markov_model::Markov;
 use crate::utils::file_utils::FileOperations;
+use crate::core::text_handler::generate_text;
 
 pub(super) const HELP: &str = "help";
 pub(super) const VERSION: &str = "version";
@@ -74,6 +70,7 @@ impl Commands {
             Self::ChangePrefix => Answers::ChangePrefix,
             Self::ChangeCommandIndicator => Answers::ChangeCommandIndicator,
             Self::Generate => Answers::Generate,
+            // Make a stat command that will exhibit most words used 
             Self::Hello => Answers::Hello,
             _ => Answers::Unknown,
         }
@@ -101,63 +98,7 @@ impl Commands {
 
                 Answers::ChangePrefix.output_answer(content, guild_id)
             }
-            Self::Generate => {
-                let mut rng = rand::thread_rng();
-                let sentence_length = rng.gen_range(6..30);
-                let markov = Markov::from_file(guild_id)?;
-                let mut generated_text: Vec<String> = Vec::new();
-
-
-                if rng.gen_range(0..2) == 0 {
-                    let lone_words_map = markov.lone_words.unwrap();
-                    if let Some(word) = lone_words_map.choose(&mut rng) {
-                        return Ok(word.clone());
-                    }
-                } else {
-                    let words_map = markov.words.as_ref().unwrap();
-                    let initial_word_candidates: Vec<&String> = words_map.keys().collect();
-
-                    let mut current_word = match initial_word_candidates.choose(&mut rng) {
-                        Some(word) => (*word).clone(),
-                        None => String::new(),
-                    };
-
-                    for _ in 00..sentence_length {
-                        generated_text.push(current_word.clone());
-
-                        let word_entry = words_map.get(&current_word);
-
-                        let next_words_map = match word_entry.and_then(|entry| entry.next_words.as_ref()) {
-                            Some(next_words_map) => next_words_map,
-                            None => break,
-                        };
-
-                        let mut candidates: Vec<&String> = Vec::new();
-                        let mut weights: Vec<u32> = Vec::new();
-
-                        for (word, count) in next_words_map.iter() {
-                            candidates.push(word);
-                            weights.push(*count);
-                        }
-
-                        if candidates.is_empty() {
-                            break;
-                        }
-
-                        let dist = match WeightedIndex::new(&weights) {
-                            Ok(d) => d,
-                            Err(_) => {
-                                break;
-                            }
-                        };
-
-                        let next_word_index = dist.sample(&mut rng);
-                        current_word = candidates[next_word_index].clone();
-                    }
-                }
-
-                Answers::Generate.output_answer(Some(generated_text.join(" ")), guild_id)
-            },
+            Self::Generate => Answers::Generate.output_answer(Some(generate_text(guild_id)?), guild_id),
             Self::Echo => Answers::Echo.output_answer(content, guild_id),
             Self::Ping => Answers::Ping.output_answer(None, guild_id),
             Self::Help => Answers::Help.output_answer(None, guild_id),
@@ -166,7 +107,6 @@ impl Commands {
             Self::TableStatus => Answers::TableStatus.output_answer(None, guild_id),
             Self::ResetTable => Answers::ResetTable.output_answer(None, guild_id),
             Self::Hello => Answers::Hello.output_answer(None, guild_id),
-
             _ => Answers::Unknown.output_answer(None, guild_id)
         }
     }

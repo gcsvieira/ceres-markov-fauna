@@ -1,3 +1,4 @@
+use std::error::Error;
 use crate::core::message_handler::MessageHandler;
 use log::{info, error};
 use serenity::all::{ChannelId, CreateMessage, Guild};
@@ -17,12 +18,17 @@ pub(crate) struct Handler;
 
 #[async_trait]
 impl EventHandler for Handler {
+
+    // This will trigger whenever a new server adds the bot or when the bot service is started.
+    // In the latter case, it will check all the servers that currently have the bot.
     async fn guild_create(&self, ctx: Context, guild: Guild, is_new: Option<bool>) {
-        let guild_config_exists = match fs::exists(format!("srv_storage/{}/srv_config.json", guild.id)) {
+
+        let guild_config_exists = match fs::exists(Config::srv_file_path(guild.id.get())) {
             Ok(exists) => exists,
             Err(e) => {error!("Failed to find {}'s srv_config!", guild.name); return}
         };
-        let guild_markov_exists = match fs::exists(format!("srv_storage/{}/srv_markov.json", guild.id)) {
+
+        let guild_markov_exists = match fs::exists(Markov::srv_file_path(guild.id.get())) {
             Ok(exists) => exists,
             Err(e) => {error!("Failed to find {}'s srv_markov!", guild.name); return}
         };
@@ -33,54 +39,69 @@ impl EventHandler for Handler {
             if guild_markov_exists { "Markov table exists" } else { "Markov table DOES NOT exist. Creating them..." },
         );
 
+        // If none of the config files exist, create a directory for them first
         if !guild_markov_exists && !guild_config_exists {
-            fs::create_dir(format!("srv_storage/{}", guild.id.get())).unwrap_or_else(|e| {
-                error!(
-                    "Could not create config directory. {}",
-                    e.to_string()
-                );
-            });
+            fs::create_dir(format!("srv_storage/{}", guild.id.get()))
+                .unwrap_or_else(|e| {
+                    error!(
+                        "Could not create config directory. {}",
+                        e.to_string()
+                    );
+                });
 
+            // Sending a welcome message, since this server is new
             let welcome_msg = CreateMessage::new()
                 .content(Answers::Welcome
                     .output_answer(None, guild.id.get())
-                    .unwrap_or("Could not get welcome msg!".to_string())
-                );
-            guild.system_channel_id.unwrap().send_message(&ctx.http, welcome_msg).await.expect("Could not send welcome msg.");
+                    .unwrap());
+
+            // Sending it to the system channel if it exists
+            if let Some(channel_id) = guild.system_channel_id {
+                channel_id
+                    .send_message(&ctx.http, welcome_msg)
+                    .await
+                    .expect("Could not send welcome msg.");
+            };
         };
 
+        // With the server directory existing, we can now create the individual json files.
         if !guild_config_exists {
             Config::new().save_to_file(guild.id.get()).unwrap_or_else(|e| {
-                error!("Could not create standard config file. {}", e);
+                error!("Could not create standard config file for {0}: {1}", guild.name, e);
             });
         }
 
         if !guild_markov_exists {
             Markov::new().save_to_file(guild.id.get()).unwrap_or_else(|e| {
-                error!("Could not create standard markov file. {}", e);
+                error!("Could not create standard markov file for {0}. {1}", guild.name, e);
             });
         }
     }
 
+    // this will trigger whenever any message is sent on the servers the bot's in
     async fn message(&self, ctx: Context, msg: Message) {
-        // Won't do anything if the message is from a bot.
-        if msg.author.bot { return }
+        if msg.author.bot { return };
         
-        // I need two kinds of message processing:
-        //  -> I need a string in case I need to answer
-        //        The current structure satisfies that.
-        //  -> I need the command processing to happen
-        //        The current structure struggles with this because even though I have a place to process
-        //        commands I don't have something to send the message back in case that processing involved
-        //        a string.
-        //  
-        //   -> The solution is to make process command return an optional string while at the same time
-        let answer =
-            process_message(msg.content, msg.guild_id.unwrap().get()).unwrap_or_else(|e| {
-                error!("There was an error regarding file io: {}", e);
-                None
-            });
+        let msg_handler = MessageHandler::new(msg.content, msg.guild_id.unwrap().get());
+        
+        msg_handler
+            .process_message()
+            .map_err(|e| {
+                error!("There was an error when checking {0}'s message type: {1}", msg.author, e);
+                e
+            })
+            .ok();
+        
+        let answer = msg_handler
+            .process_message()
+            .unwrap_or_else(|e| {
+            error!("There was an error when processing {0}'s message: {1}", msg.author, e);
 
+            // Attach None to "answer" if there was an error.
+            None
+        });
+
+        // If "answer" is None, no message will be sent
         if answer.is_some() {
             answer_message(answer.unwrap(), ctx, msg.channel_id).await;
         }
@@ -88,14 +109,10 @@ impl EventHandler for Handler {
     
     // TODO: create sentence generation algorithm
 
+    // This will tell you if the bot's connection to discord api was successful
     async fn ready(&self, _: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
     }
-}
-
-fn process_message(msg: String, guild_id: u64) -> Result<Option<String>, io::Error> {    
-    let mut msg_handler: MessageHandler = MessageHandler::new(msg, guild_id);
-    msg_handler.check_msg_type()?.parse()
 }
 
 /// Sends a message to a channel on discord.

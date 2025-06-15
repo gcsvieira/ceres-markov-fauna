@@ -185,6 +185,7 @@ dependencies = [
  "env_logger",
  "log",
  "once_cell",
+ "rand",
  "serde",
  "serde_json",
  "serde_yaml",
