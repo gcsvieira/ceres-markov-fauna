@@ -1,6 +1,6 @@
 use std::io;
 use crate::discord::commands::{HELP, VERSION, COMMANDS, LONE_WORD_PROB, GENERATE, CONSIDER_FREQUENCY, TABLE_STATUS, RESET_TABLE, ECHO, PING, CHANGE_PREFIX, CHANGE_COMMAND_INDICATOR, HELLO};
-use crate::storage::srv_config_model::Config;
+use crate::storage::guild_config_model::Config;
 
 const UNKNOWN_ANS: &str = "I... I can't understand that...";
 pub(crate) enum Answers {

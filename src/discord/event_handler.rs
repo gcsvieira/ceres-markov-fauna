@@ -1,6 +1,6 @@
-use std::error::Error;
 use crate::core::message_handler::MessageHandler;
-use log::{info, error};
+use crate::storage::guild_config_model::Config;
+use log::{error, info, warn};
 use serenity::all::{ChannelId, CreateMessage, Guild};
 use serenity::{
     async_trait,
@@ -8,105 +8,90 @@ use serenity::{
     prelude::*,
 };
 use std::fs;
-use std::io;
+use serenity::futures::future::ok;
+use crate::core::db_client::DbClient;
 use crate::discord::answers::Answers;
-use crate::storage::srv_config_model::Config;
-use crate::storage::srv_markov_model::Markov;
 use crate::utils::file_utils::FileOperations;
 
-pub(crate) struct Handler;
+pub(crate) struct Handler {
+    pub(crate) db: DbClient
+}
 
 #[async_trait]
 impl EventHandler for Handler {
-
     // This will trigger whenever a new server adds the bot or when the bot service is started.
     // In the latter case, it will check all the servers that currently have the bot.
     async fn guild_create(&self, ctx: Context, guild: Guild, is_new: Option<bool>) {
+        let guild_name_uppercase = guild.name.to_ascii_uppercase();
+        let mut guild_directory = None;
 
-        let guild_config_exists = match fs::exists(Config::srv_file_path(guild.id.get())) {
-            Ok(exists) => exists,
-            Err(e) => {error!("Failed to find {}'s srv_config!", guild.name); return}
-        };
+        info!("[{}] Guild detected.", &guild_name_uppercase);
 
-        let guild_markov_exists = match fs::exists(Markov::srv_file_path(guild.id.get())) {
-            Ok(exists) => exists,
-            Err(e) => {error!("Failed to find {}'s srv_markov!", guild.name); return}
-        };
+        fs::exists(format!("db/{}", guild.id.get()))
+            .map_or_else(
+                |e| { error!("Failed to find {}'s srv_db: {}", guild.name, e) },
+                |path_bool| match path_bool {
+                    true => info!("[{}] Guild directory exists.", &guild_name_uppercase),
+                    false => {
+                        warn!("[{}] Guild directory DOESN't exist. Creating one...", &guild_name_uppercase);
+                        fs::create_dir(format!("db/{}", guild.id.get()))
+                            .unwrap_or_else(|e| { warn!("[{}] Could not create database directory. It might possibly already exist: {}", &guild_name_uppercase, e); });
 
-        info!("Guild {0} was detected:\n  -> {1}\n  -> {2}",
-            guild.name,
-            if guild_config_exists { "Config files exist" } else { "Config files DON'T exist. Creating them..." },
-            if guild_markov_exists { "Markov table exists" } else { "Markov table DOES NOT exist. Creating them..." },
-        );
+                        guild_directory = Some(path_bool)
+                    }
+                }
+            );
 
-        // If none of the config files exist, create a directory for them first
-        if !guild_markov_exists && !guild_config_exists {
-            fs::create_dir(format!("srv_storage/{}", guild.id.get()))
-                .unwrap_or_else(|e| {
-                    error!(
-                        "Could not create config directory. {}",
-                        e.to_string()
-                    );
-                });
-
-            // Sending a welcome message, since this server is new
-            let welcome_msg = CreateMessage::new()
-                .content(Answers::Welcome
-                    .output_answer(None, guild.id.get())
-                    .unwrap());
-
-            // Sending it to the system channel if it exists
+        if guild_directory.is_some() {
             if let Some(channel_id) = guild.system_channel_id {
+                let welcome_msg = CreateMessage::new()
+                    .content(Answers::Welcome
+                        .output_answer(None, guild.id.get())
+                        .unwrap());
+
                 channel_id
                     .send_message(&ctx.http, welcome_msg)
                     .await
-                    .expect("Could not send welcome msg.");
+                    .map_err(|e| error!("[{}] Failed to send welcome message to the system channel: {}", &guild_name_uppercase, e))
+                    .ok();
             };
-        };
-
-        // With the server directory existing, we can now create the individual json files.
-        if !guild_config_exists {
-            Config::new().save_to_file(guild.id.get()).unwrap_or_else(|e| {
-                error!("Could not create standard config file for {0}: {1}", guild.name, e);
-            });
         }
 
-        if !guild_markov_exists {
-            Markov::new().save_to_file(guild.id.get()).unwrap_or_else(|e| {
-                error!("Could not create standard markov file for {0}. {1}", guild.name, e);
-            });
-        }
+        fs::exists(Config::guild_file_path(guild.id.get()))
+            .map_or_else(
+                |e| error!("Could not create standard config file for {0}: {1}", &guild_name_uppercase, e),
+                |config_file_bool| match config_file_bool {
+                    true => info!("[{}] Guild's config file is present.", &guild_name_uppercase),
+                    false => {
+                        warn!("[{}] Guild's config file DOESN'T exist. Generating it...", &guild_name_uppercase);
+                        Config::new()
+                            .save_to_file(guild.id.get())
+                            .map_or_else(
+                                |e| error!("[{}] Could not create standard config file for : {}", &guild_name_uppercase, e),
+                                |()| info!("[{}] Guild's config file was created successfully.", &guild_name_uppercase)
+                            )
+                    }
+                }
+            );
     }
 
     // this will trigger whenever any message is sent on the servers the bot's in
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.author.bot { return };
-        
-        let msg_handler = MessageHandler::new(msg.content, msg.guild_id.unwrap().get());
-        
-        msg_handler
-            .process_message()
-            .map_err(|e| {
-                error!("There was an error when checking {0}'s message type: {1}", msg.author, e);
-                e
-            })
-            .ok();
-        
-        let answer = msg_handler
-            .process_message()
-            .unwrap_or_else(|e| {
-            error!("There was an error when processing {0}'s message: {1}", msg.author, e);
+        if msg.author.bot {
+            return;
+        };
 
-            // Attach None to "answer" if there was an error.
-            None
-        });
+        let msg_handler = MessageHandler::new(msg.content, msg.guild_id.unwrap().get());
+
+        let answer = msg_handler
+            .process_message();
 
         // If "answer" is None, no message will be sent
-        if answer.is_some() {
-            answer_message(answer.unwrap(), ctx, msg.channel_id).await;
+        if let Some(answer) = answer {
+            answer_message(answer, ctx, msg.channel_id).await;
         }
     }
-    
+
     // TODO: create sentence generation algorithm
 
     // This will tell you if the bot's connection to discord api was successful
