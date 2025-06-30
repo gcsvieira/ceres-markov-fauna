@@ -1,6 +1,6 @@
 use std::io;
 use crate::discord::answers::Answers;
-use crate::storage::srv_config_model::Config;
+use crate::storage::guild_config_model::Config;
 use crate::utils::file_utils::FileOperations;
 use crate::core::text_handler::generate_text;
 

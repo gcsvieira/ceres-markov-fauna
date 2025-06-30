@@ -2,15 +2,21 @@ use crate::discord::event_handler;
 use serenity::prelude::*;
 use dotenv::dotenv;
 use std::env;
-use log::error;
+use std::path::Path;
+use log::{error, info};
+use rusqlite::Connection;
 
 mod core;
 mod discord;
 mod markov;
 mod storage;
 mod utils;
+mod errors;
 
 use serenity::Client;
+use serenity::futures::TryFutureExt;
+use tokio::task;
+use crate::core::db_client::DbClient;
 
 #[tokio::main]
 async fn main() {
@@ -22,13 +28,22 @@ async fn main() {
         GatewayIntents::GUILD_MESSAGES |
         GatewayIntents::MESSAGE_CONTENT;
 
+    let db_client = DbClient::new("db/markov_words.db")
+        .await
+        .map_or_else(
+        |e| { error!("{}", e); panic!()},
+        |con| { info!("Database was connected successfully!"); con }
+    );
+
     let mut client = Client::builder(&token, intents)
-        .event_handler(event_handler::Handler)
+        .event_handler(event_handler::Handler { db: db_client })
         .await
         .expect("Error creating client");
 
     if let Err(why) = client.start().await {
         error!("Client error: {:?}", why);
+
+
     }
 
     /*    let texts = [
