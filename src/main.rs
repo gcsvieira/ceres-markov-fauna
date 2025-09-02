@@ -16,7 +16,8 @@ mod errors;
 use serenity::Client;
 use serenity::futures::TryFutureExt;
 use tokio::task;
-use crate::core::db_client::DbClient;
+use storage::db_client::DbClient;
+use crate::storage::app_properties_model::PROPERTIES;
 
 #[tokio::main]
 async fn main() {
@@ -28,7 +29,7 @@ async fn main() {
         GatewayIntents::GUILD_MESSAGES |
         GatewayIntents::MESSAGE_CONTENT;
 
-    let db_client = DbClient::new("db/markov_words.db")
+    let db_client = DbClient::new(&PROPERTIES.db.path)
         .await
         .map_or_else(
         |e| { error!("{}", e); panic!()},
@@ -36,7 +37,7 @@ async fn main() {
     );
 
     let mut client = Client::builder(&token, intents)
-        .event_handler(event_handler::Handler { db: db_client })
+        .event_handler(event_handler::Handler { db: db_client.clone() })
         .await
         .expect("Error creating client");
 

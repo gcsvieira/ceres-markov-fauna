@@ -5,8 +5,8 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 pub(crate) struct Properties {
     pub(crate) bot: Bot,
-    #[serde(rename = "std_config")]
-    pub(crate) std_config: StdConfig
+    pub(crate) std_config: StdConfig,
+    pub(crate) db: Db
 }
 
 #[derive(Debug, Deserialize)]
@@ -20,6 +20,11 @@ pub(crate) struct StdConfig {
     pub(crate) command_indicator: char,
     pub(crate) lone_word_prob: u8,
     pub(crate) consider_frequency: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct Db {
+    pub(crate)  path: String
 }
 
 pub(crate) static PROPERTIES: Lazy<Properties> = Lazy::new(|| {

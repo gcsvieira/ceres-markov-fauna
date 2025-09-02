@@ -1,38 +1,31 @@
 use rand::distributions::Distribution;
 use crate::storage::guild_markov_model::Markov;
-use crate::utils::file_utils::FileOperations;
 use rand::Rng;
 use rand::distributions::WeightedIndex;
 use rand::prelude::SliceRandom;
 use std::io;
+use crate::errors::db_error::DbError;
+use crate::storage::db_client::DbClient;
 
-pub(super) fn store_text(text: String, guild_id: u64) -> Result<(), io::Error> {
+pub(super) async fn store_text(text: String, guild_id: u64, db_client: &DbClient) -> Result<(), DbError> {
     // TODO: make her randomly send a generated sentence here, say... 5% of chance
 
-    // if the received text is empty, return None
     if text.is_empty() {
         return Ok(());
     }
-
-    let mut markov = match Markov::from_file(guild_id) {
-        Ok(markov) => markov,
-        Err(e) => return Err(e),
-    };
 
     let words: Vec<String> = text.split_whitespace().map(String::from).collect();
 
     // TODO: check for links, duplicated words and emotes she can't use. They shouldn't be added.
     // TODO: Merge lone_words with words
 
-    for i in 0..(words.len() - 1) {
-        let current_word = words[i].clone();
-        let next_word = words[i + 1].clone();
-
-        todo!();
-        markov.add_word(current_word, Option::from(next_word));
+    for word in words {
+        if db_client.is_not_duplicate(word.clone()).await? {
+            db_client.store_word(word).await?
+        }
     }
-
-    todo!();
+    
+    Ok(())
 }
 
 pub(crate) fn generate_text(guild_id: u64) -> Result<String, io::Error> {

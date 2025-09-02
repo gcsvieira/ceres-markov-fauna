@@ -9,7 +9,7 @@ use serenity::{
 };
 use std::fs;
 use serenity::futures::future::ok;
-use crate::core::db_client::DbClient;
+use crate::storage::db_client::DbClient;
 use crate::discord::answers::Answers;
 use crate::utils::file_utils::FileOperations;
 
@@ -84,7 +84,8 @@ impl EventHandler for Handler {
         let msg_handler = MessageHandler::new(msg.content, msg.guild_id.unwrap().get());
 
         let answer = msg_handler
-            .process_message();
+            .process_message(&self.db)
+            .await;
 
         // If "answer" is None, no message will be sent
         if let Some(answer) = answer {
