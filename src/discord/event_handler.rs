@@ -23,26 +23,10 @@ impl EventHandler for Handler {
     // In the latter case, it will check all the servers that currently have the bot.
     async fn guild_create(&self, ctx: Context, guild: Guild, is_new: Option<bool>) {
         let guild_name_uppercase = guild.name.to_ascii_uppercase();
-        let mut guild_directory = None;
 
         info!("[{}] Guild detected.", &guild_name_uppercase);
 
-        fs::exists(format!("db/{}", guild.id.get()))
-            .map_or_else(
-                |e| { error!("Failed to find {}'s srv_db: {}", guild.name, e) },
-                |path_bool| match path_bool {
-                    true => info!("[{}] Guild directory exists.", &guild_name_uppercase),
-                    false => {
-                        warn!("[{}] Guild directory DOESN't exist. Creating one...", &guild_name_uppercase);
-                        fs::create_dir(format!("db/{}", guild.id.get()))
-                            .unwrap_or_else(|e| { warn!("[{}] Could not create database directory. It might possibly already exist: {}", &guild_name_uppercase, e); });
-
-                        guild_directory = Some(path_bool)
-                    }
-                }
-            );
-
-        if guild_directory.is_some() {
+        if let Ok(None) = self.db.is_guild_new(guild.id.get()).await {
             if let Some(channel_id) = guild.system_channel_id {
                 let welcome_msg = CreateMessage::new()
                     .content(Answers::Welcome
@@ -54,7 +38,12 @@ impl EventHandler for Handler {
                     .await
                     .map_err(|e| error!("[{}] Failed to send welcome message to the system channel: {}", &guild_name_uppercase, e))
                     .ok();
-            };
+
+                match self.db.store_guild(guild.id.get(), guild.name, guild.system_channel_id.map(|ch| ch.get()).or(None)).await {
+                    Ok(_) => info!("[{}] Guild's information was stored successfully.", &guild_name_uppercase),
+                    Err(_) => error!("[{}] Failed to store guild's information.", &guild_name_uppercase),
+                };
+            }
         }
 
         fs::exists(Config::guild_file_path(guild.id.get()))

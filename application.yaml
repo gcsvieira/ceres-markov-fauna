@@ -8,7 +8,7 @@ std_config:
   consider_frequency: true
   
 db:
-  path: 'db/markov_words.db'
+  path: 'db/ceres_markov_fauna.db'
 
 interaction_trigger:
   hello: 

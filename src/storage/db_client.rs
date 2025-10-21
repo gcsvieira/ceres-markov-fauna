@@ -1,10 +1,8 @@
-use std::ops::Add;
 use std::sync::{Arc, Mutex};
-use log::error;
-use rusqlite::{Connection, Result as RusqliteResult};
-use serenity::futures::StreamExt;
+use rusqlite::{Connection, OptionalExtension, Result as RusqliteResult};
 use tokio::task;
 use crate::errors::db_error::DbError;
+use crate::storage::db_model::GuildModel;
 
 #[derive(Clone)]
 pub(crate) struct DbClient {
@@ -26,16 +24,24 @@ impl DbClient {
                 [])?;
 
             con.execute(
+                "CREATE TABLE IF NOT EXISTS guilds (
+                id BIGINT PRIMARY KEY,
+                name VARCHAR(50) NOT NULL UNIQUE,
+                system_channel_id BIGINT)",
+                [])?;
+
+            con.execute(
                 "CREATE TABLE IF NOT EXISTS word_chaining (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         word_id INTEGER,
                         next_word_id INTEGER,
                         frequency INTEGER,
                         guild_id BIGINT,
+                        FOREIGN KEY(guild_id) REFERENCES guilds(id),
                         FOREIGN KEY(word_id) REFERENCES words(id),
                         FOREIGN KEY(next_word_id) REFERENCES words(id))",
                 [])?;
-            
+
             Ok(con)
         }).await?
             ?;
@@ -60,30 +66,32 @@ impl DbClient {
     }
     
     pub(crate) async fn is_not_duplicate(&self, possible_duplicate: String) -> RusqliteResult<bool, DbError> {
-        let con_arc = Arc::clone(&self.con);
-        
-        task::spawn_blocking(move || {
-            let con_guard = con_arc
-                .lock()
-                .unwrap();
-            
-            let mut dup_check = con_guard.prepare(
-                "SELECT w.word_lowercase FROM words w WHERE w.word_lowercase = ?"
-            )?;
-
-            let mut word = Vec::new();
-            let word_iter = dup_check.query_map([possible_duplicate.to_lowercase()], |row| { row.get(0) })?;
-            
-            for word_result in word_iter {
-                word.push(word_result?);
-            }
-            
-            if word.is_empty() {
-                Ok(false)
-            } else {
-                Ok(true)
-            }
-        }).await?
+        todo!();
+        // let con_arc = Arc::clone(&self.con);
+        //
+        // task::spawn_blocking(move || {
+        //     let con_guard = con_arc
+        //         .lock()
+        //         .unwrap();
+        //
+        //     let mut dup_check = con_guard.prepare(
+        //         "SELECT w.word_lowercase FROM words w WHERE w.word_lowercase = ?"
+        //     )?;
+        //
+        //     let mut word = Vec::new();
+        //     let word_iter = dup_check
+        //         .query_map([possible_duplicate.to_lowercase()], |row| { row.get(0) })?;
+        //
+        //     for word_result in word_iter {
+        //         word.push(word_result?);
+        //     }
+        //
+        //     if word.is_empty() {
+        //         Ok(false)
+        //     } else {
+        //         Ok(true)
+        //     }
+        // }).await?
     }
     
     pub(crate) async fn store_word_chaining(&self, current_word: String, next_word: String) -> RusqliteResult<(), DbError> {
@@ -99,6 +107,45 @@ impl DbClient {
                 , []).expect("TODO: panic message");
             
             Ok(())
+        }).await?
+    }
+
+    pub(crate) async fn store_guild(&self, guild_id: u64, guild_name: String, system_channel_id: Option<u64>) -> RusqliteResult<(), DbError> {
+        let con_arc = Arc::clone(&self.con);
+
+        task::spawn_blocking(move || {
+            let con_guard = con_arc
+                .lock()
+                .unwrap();
+
+            con_guard.execute(
+                "INSERT INTO guilds (id, name, system_channel_id) VALUES (?1, ?2, ?3)",
+                (guild_id, guild_name, system_channel_id))?;
+
+            Ok(())
+        }).await?
+    }
+
+    pub(crate) async fn is_guild_new(&self, guild_id: u64) -> RusqliteResult<Option<GuildModel>, DbError> {
+        let con_arc = Arc::clone(&self.con);
+
+        task::spawn_blocking(move || {
+            let con_guard = con_arc
+                .lock()
+                .unwrap();
+
+            let check_guild = con_guard
+                .query_one("SELECT * FROM guilds g WHERE g.id = ?1", [guild_id], |row| Ok(GuildModel {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    system_channel_id: row.get(2)?,
+                })).optional();
+
+            return if let Some(guild) = check_guild? {
+                Ok(Some(guild))
+            } else {
+                Ok(None)
+            }
         }).await?
     }
 }

@@ -4,6 +4,14 @@ use std::collections::HashMap;
 use std::io;
 
 #[derive(Deserialize, Serialize, Debug)]
+pub(crate) struct GuildModel {
+    pub(crate) id: u64,
+    pub(crate) name: String,
+    pub(crate) system_channel_id: Option<u64>,
+}
+
+
+#[derive(Deserialize, Serialize, Debug)]
 pub(crate) struct WordEntry {
     pub(crate) next_words: Option<HashMap<String, u32>>,
 }

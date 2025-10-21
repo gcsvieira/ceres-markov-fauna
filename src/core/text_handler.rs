@@ -1,5 +1,5 @@
 use rand::distributions::Distribution;
-use crate::storage::guild_markov_model::Markov;
+use crate::storage::db_model::Markov;
 use rand::Rng;
 use rand::distributions::WeightedIndex;
 use rand::prelude::SliceRandom;

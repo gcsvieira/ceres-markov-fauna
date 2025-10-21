@@ -14,6 +14,7 @@ mod utils;
 mod errors;
 
 use serenity::Client;
+use serenity::futures::future::ok;
 use serenity::futures::TryFutureExt;
 use tokio::task;
 use storage::db_client::DbClient;
@@ -21,19 +22,25 @@ use crate::storage::app_properties_model::PROPERTIES;
 
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
+    dotenv()
+        .ok()
+        .map_or_else(|| {error!("Failed to load dotenv. Is it located in the root folder?"); panic!()},
+                     |dotenv| {info!("Dotenv file loaded successfully.")});
+
     env_logger::init();
 
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
-    let intents = GatewayIntents::GUILDS |
-        GatewayIntents::GUILD_MESSAGES |
-        GatewayIntents::MESSAGE_CONTENT;
+    let token = match env::var("DISCORD_TOKEN") {
+        Ok(token) => {info!("Discord token loaded successfully."); token},
+        Err(e) => {error!("There was a problem with the discord token. Check the dotenv file: {}", e); panic!()}
+    };
+
+    let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
     let db_client = DbClient::new(&PROPERTIES.db.path)
         .await
         .map_or_else(
-        |e| { error!("{}", e); panic!()},
-        |con| { info!("Database was connected successfully!"); con }
+        |e| { error!("Problem when creating the client for the db: {}", e); panic!()},
+        |con| { info!("Database was connected successfully."); con }
     );
 
     let mut client = Client::builder(&token, intents)
