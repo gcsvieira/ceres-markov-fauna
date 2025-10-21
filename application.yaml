@@ -1,0 +1,25 @@
+bot:
+  id: <@1378803271728107660>
+
+std_config:
+  prefix: cf
+  command_indicator: '!'
+  lone_word_prob: 25
+  consider_frequency: true
+  
+db:
+  path: 'db/markov_words.db'
+
+interaction_trigger:
+  hello: 
+    - hello
+    - hi
+    - wassup
+    - whats up
+    - hey
+  mood:
+    - how you doing
+    - how are you
+    - you doing good
+    - you alright
+  
