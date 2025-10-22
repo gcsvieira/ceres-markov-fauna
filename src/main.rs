@@ -2,9 +2,7 @@ use crate::discord::event_handler;
 use serenity::prelude::*;
 use dotenv::dotenv;
 use std::env;
-use std::path::Path;
 use log::{error, info};
-use rusqlite::Connection;
 
 mod core;
 mod discord;
@@ -18,6 +16,8 @@ use serenity::futures::future::ok;
 use serenity::futures::TryFutureExt;
 use tokio::task;
 use storage::db_client::DbClient;
+use discord::commands::hello::hello;
+use crate::discord::commands::hello::Data;
 use crate::storage::app_properties_model::PROPERTIES;
 
 #[tokio::main]
@@ -43,7 +43,21 @@ async fn main() {
         |con| { info!("Database was connected successfully."); con }
     );
 
+    let framework = poise::Framework::builder()
+        .options(poise::FrameworkOptions {
+            commands: vec![hello()],
+            ..Default::default()
+        })
+        .setup(|ctx, _ready, framework| {
+            Box::pin(async move {
+                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
+                Ok(Data {})
+            })
+        })
+        .build();
+
     let mut client = Client::builder(&token, intents)
+        .framework(framework)
         .event_handler(event_handler::Handler { db: db_client.clone() })
         .await
         .expect("Error creating client");

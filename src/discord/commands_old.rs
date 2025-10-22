@@ -16,7 +16,7 @@ pub(super) const CHANGE_PREFIX: &str = "change-prefix";
 pub(super) const COMMANDS: &str = "commands";
 pub(super) const GENERATE: &str = "generate";
 pub(super) const CHANGE_COMMAND_INDICATOR: &str = "change-com-indicator";
-pub(super) const HELLO: &str = "hello";
+pub(super) const HELLO: &str = "hello_old";
 
 pub(crate) enum Commands {
     Help,
