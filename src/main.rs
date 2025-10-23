@@ -19,6 +19,8 @@ use commands::help::help;
 use commands::echo::echo;
 use commands::version::version;
 use storage::app_properties_model::PROPERTIES;
+use crate::commands::reset_table::reset_table;
+use crate::errors::framework_error::on_error;
 
 pub(crate) struct Data;
 
@@ -36,7 +38,7 @@ async fn main() {
         Err(e) => {error!("There was a problem with the discord token. Check the dotenv file: {}", e); panic!()}
     };
 
-    let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
+    let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT | GatewayIntents::GUILD_MESSAGE_REACTIONS;
 
     let db_client = DbClient::new(&PROPERTIES.db.path)
         .await
@@ -51,7 +53,9 @@ async fn main() {
                 hello(),
                 help(),
                 echo(),
-                version()],
+                version(),
+                reset_table()],
+            on_error: |error| Box::pin(on_error(error)),
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {

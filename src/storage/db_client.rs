@@ -65,7 +65,7 @@ impl DbClient {
         }).await?
     }
     
-    pub(crate) async fn is_not_duplicate(&self, possible_duplicate: String) -> RusqliteResult<Option<bool>, DbError> {
+    pub(crate) async fn is_not_duplicate(&self, possible_duplicate: String) -> RusqliteResult<bool, DbError> {
         let con_arc = Arc::clone(&self.con);
 
         task::spawn_blocking(move || {
@@ -73,16 +73,15 @@ impl DbClient {
                 .lock()
                 .unwrap();
 
-            let dup_check = con_guard.query_one(
+            let dup_check: Option<bool> = con_guard.query_one(
                 "SELECT w.word_lowercase FROM words w WHERE w.word_lowercase = ?1",
                 [possible_duplicate.to_lowercase()],
                 |row| Ok((row.get(0)?)),
             ).optional()?;
 
-            if let Some(dup_check) = dup_check {
-                Ok(Some(dup_check))
-            } else {
-                Ok(None)
+            match dup_check {
+                None => Ok(true),
+                Some(_) => Ok(false)
             }
         }).await?
 

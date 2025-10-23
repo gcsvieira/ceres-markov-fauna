@@ -6,3 +6,7 @@ pub(crate) mod consider_frequency;
 pub(crate) mod help;
 pub(crate) mod word_count;
 pub(crate) mod generate;
+mod track_messages;
+mod channel_add;
+mod channel_remove;
+mod word;
