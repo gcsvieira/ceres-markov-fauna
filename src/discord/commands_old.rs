@@ -6,7 +6,6 @@ use crate::core::text_handler::generate_text;
 
 pub(super) const HELP: &str = "help";
 pub(super) const VERSION: &str = "version";
-pub(super) const LONE_WORD_PROB: &str = "lone-word-prob";
 pub(super) const CONSIDER_FREQUENCY: &str = "consider-frequency";
 pub(super) const TABLE_STATUS: &str = "table-status";
 pub(super) const RESET_TABLE: &str = "reset-table";
@@ -44,7 +43,6 @@ impl Commands {
             HELP => Self::Help,
             COMMANDS => Self::Commands,
             VERSION => Self::Version,
-            LONE_WORD_PROB => Self::LoneWordProb,
             CONSIDER_FREQUENCY => Self::ConsiderFrequency,
             TABLE_STATUS => Self::TableStatus,
             RESET_TABLE => Self::ResetTable,

@@ -10,15 +10,17 @@ mod markov;
 mod storage;
 mod utils;
 mod errors;
+pub(crate) mod commands;
 
 use serenity::Client;
-use serenity::futures::future::ok;
-use serenity::futures::TryFutureExt;
-use tokio::task;
 use storage::db_client::DbClient;
-use discord::commands::hello::hello;
-use crate::discord::commands::hello::Data;
-use crate::storage::app_properties_model::PROPERTIES;
+use commands::hello::hello;
+use commands::help::help;
+use commands::echo::echo;
+use commands::version::version;
+use storage::app_properties_model::PROPERTIES;
+
+pub(crate) struct Data;
 
 #[tokio::main]
 async fn main() {
@@ -45,7 +47,11 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![hello()],
+            commands: vec![
+                hello(),
+                help(),
+                echo(),
+                version()],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {

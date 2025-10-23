@@ -1,5 +1,5 @@
 use std::io;
-use crate::discord::commands_old::{HELP, VERSION, COMMANDS, LONE_WORD_PROB, GENERATE, CONSIDER_FREQUENCY, TABLE_STATUS, RESET_TABLE, ECHO, PING, CHANGE_PREFIX, CHANGE_COMMAND_INDICATOR, HELLO};
+use crate::discord::commands_old::{HELP, VERSION, COMMANDS, GENERATE, CONSIDER_FREQUENCY, TABLE_STATUS, RESET_TABLE, ECHO, PING, CHANGE_PREFIX, CHANGE_COMMAND_INDICATOR, HELLO};
 use crate::storage::guild_config_model::Config;
 
 const UNKNOWN_ANS: &str = "I... I can't understand that...";
@@ -52,16 +52,12 @@ impl Answers {
             "Okay, no worries! Let me show you what each command does:\n\n\
             - **{HELP}**: You'll get this message with all the commands you need!\n\
             - **{VERSION}**: I will send you my current version.\n\
-            - **{COMMANDS} **: Shows you what are the current configurations of this server!\n\
-            - **{LONE_WORD_PROB} <0...100>**: this will change the frequency of lone words on your sentences (words not connected to any sentence)!\n\
             - **{CONSIDER_FREQUENCY} <yes/no>**: when generating sentences, this will take the amount of times a word has appeared in relation to its previous word into consideration!\n\
             - **{TABLE_STATUS}**: Current status of your table! How many words and words next to it exists!\n\
             - **{RESET_TABLE}**: This will remove all the words stored on this server's table! This is unrecoverable so you be careful, alright?\n\
             - **{ECHO} <msg>**: I will repeat what you say! Don't make me say weird stuff okay?\n\
             - **{PING}**: I will reply you with a pong! Hehehe\n\
             - **{GENERATE}**: I will generate a random sentence!\n\
-            - **{CHANGE_PREFIX}**: This will change the prefix you use to call me. If your prefix is \"cf!\", then prefix is \"cf\"!\n\
-            - **{CHANGE_COMMAND_INDICATOR}**: This is the command indicator of your prefix! If your prefix is \"cf!\" then the indicator is \"!\"!\n\
             - **{HELLO}**: I'll talk to you!!",
         )
     }

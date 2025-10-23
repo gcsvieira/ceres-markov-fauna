@@ -7,12 +7,8 @@ use std::io;
 use crate::errors::db_error::DbError;
 use crate::storage::db_client::DbClient;
 
-pub(super) async fn store_text(text: String, guild_id: u64, db_client: &DbClient) -> Result<(), DbError> {
+pub(crate) async fn store_text(text: String, guild_id: u64, db_client: &DbClient) -> Result<(), DbError> {
     // TODO: make her randomly send a generated sentence here, say... 5% of chance
-
-    if text.is_empty() {
-        return Ok(());
-    }
 
     let words: Vec<String> = text.split_whitespace().map(String::from).collect();
 
@@ -20,7 +16,7 @@ pub(super) async fn store_text(text: String, guild_id: u64, db_client: &DbClient
     // TODO: Merge lone_words with words
 
     for word in words {
-        if db_client.is_not_duplicate(word.clone()).await? {
+        if let Ok(None) = db_client.is_not_duplicate(word.clone()).await {
             db_client.store_word(word).await?
         }
     }

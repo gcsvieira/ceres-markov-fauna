@@ -9,8 +9,10 @@ use serenity::{
     prelude::*,
 };
 use std::fs;
+use crate::core::text_handler::store_text;
 use crate::storage::db_client::DbClient;
 use crate::discord::answers::Answers;
+use crate::storage::app_properties_model::PROPERTIES;
 use crate::utils::file_utils::FileOperations;
 
 pub(crate) struct Handler {
@@ -45,23 +47,6 @@ impl EventHandler for Handler {
                 };
             }
         }
-
-        fs::exists(Config::guild_file_path(guild.id.get()))
-            .map_or_else(
-                |e| error!("Could not create standard config file for {0}: {1}", &guild_name_uppercase, e),
-                |config_file_bool| match config_file_bool {
-                    true => info!("[{}] Guild's config file is present.", &guild_name_uppercase),
-                    false => {
-                        warn!("[{}] Guild's config file DOESN'T exist. Generating it...", &guild_name_uppercase);
-                        Config::new()
-                            .save_to_file(guild.id.get())
-                            .map_or_else(
-                                |e| error!("[{}] Could not create standard config file for : {}", &guild_name_uppercase, e),
-                                |()| info!("[{}] Guild's config file was created successfully.", &guild_name_uppercase)
-                            )
-                    }
-                }
-            );
     }
 
     // this will trigger whenever any message is sent on the servers the bot's in
@@ -70,15 +55,17 @@ impl EventHandler for Handler {
             return;
         };
 
-        let msg_handler = MessageHandler::new(msg.content, msg.guild_id.unwrap().get());
+        if msg.content.starts_with(&PROPERTIES.bot.id) {
+            return;
+        }
+        
+        if msg.guild_id.is_none() {
+            return;
+        }
 
-        let answer = msg_handler
-            .process_message(&self.db)
-            .await;
-
-        // If "answer" is None, no message will be sent
-        if let Some(answer) = answer {
-            answer_message(answer, ctx, msg.channel_id).await;
+        match store_text(msg.content.to_string(), msg.guild_id.unwrap().get(), &self.db).await {
+            Ok(_) => info!("[{}] Stored message successfully.", &msg.guild_id.unwrap().get()),
+            Err(e) => error!("[{}] Failed to store message: {}", &msg.guild_id.unwrap(), e),
         }
     }
 
@@ -88,14 +75,4 @@ impl EventHandler for Handler {
     async fn ready(&self, _: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
     }
-}
-
-/// Sends a message to a channel on discord.
-///
-/// Primarily assumes you're answering to a request, which means active calls from the bot might have to be sent through other methods.
-async fn answer_message(content: String, ctx: Context, channel_id: ChannelId) {
-    channel_id
-        .say(&ctx.http, content)
-        .await
-        .expect("Error sending message!");
 }

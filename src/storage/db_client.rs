@@ -58,40 +58,35 @@ impl DbClient {
                 .unwrap();
 
             con_guard.execute(
-                "INSERT INTO words (word_lowercase, word_pretty) VALUES (?, ?)",
+                "INSERT INTO words (word_lowercase, word_pretty) VALUES (?1, ?2)",
                 [word.to_lowercase(), word])?;
             
             Ok(())
         }).await?
     }
     
-    pub(crate) async fn is_not_duplicate(&self, possible_duplicate: String) -> RusqliteResult<bool, DbError> {
-        todo!();
-        // let con_arc = Arc::clone(&self.con);
-        //
-        // task::spawn_blocking(move || {
-        //     let con_guard = con_arc
-        //         .lock()
-        //         .unwrap();
-        //
-        //     let mut dup_check = con_guard.prepare(
-        //         "SELECT w.word_lowercase FROM words w WHERE w.word_lowercase = ?"
-        //     )?;
-        //
-        //     let mut word = Vec::new();
-        //     let word_iter = dup_check
-        //         .query_map([possible_duplicate.to_lowercase()], |row| { row.get(0) })?;
-        //
-        //     for word_result in word_iter {
-        //         word.push(word_result?);
-        //     }
-        //
-        //     if word.is_empty() {
-        //         Ok(false)
-        //     } else {
-        //         Ok(true)
-        //     }
-        // }).await?
+    pub(crate) async fn is_not_duplicate(&self, possible_duplicate: String) -> RusqliteResult<Option<bool>, DbError> {
+        let con_arc = Arc::clone(&self.con);
+
+        task::spawn_blocking(move || {
+            let con_guard = con_arc
+                .lock()
+                .unwrap();
+
+            let dup_check = con_guard.query_one(
+                "SELECT w.word_lowercase FROM words w WHERE w.word_lowercase = ?1",
+                [possible_duplicate.to_lowercase()],
+                |row| Ok((row.get(0)?)),
+            ).optional()?;
+
+            if let Some(dup_check) = dup_check {
+                Ok(Some(dup_check))
+            } else {
+                Ok(None)
+            }
+        }).await?
+
+
     }
     
     pub(crate) async fn store_word_chaining(&self, current_word: String, next_word: String) -> RusqliteResult<(), DbError> {
