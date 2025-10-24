@@ -43,8 +43,7 @@ impl DbClient {
                 [])?;
 
             Ok(con)
-        }).await?
-            ?;
+        }).await??;
         
         Ok(DbClient { con: Arc::new(Mutex::new(con)) })
     }
@@ -57,32 +56,19 @@ impl DbClient {
                 .lock()
                 .unwrap();
 
-            con_guard.execute(
-                "INSERT INTO words (word_lowercase, word_pretty) VALUES (?1, ?2)",
-                [word.to_lowercase(), word])?;
-            
-            Ok(())
-        }).await?
-    }
-    
-    pub(crate) async fn is_word_duplicate(&self, possible_duplicate: String) -> RusqliteResult<bool, DbError> {
-        let con_arc = Arc::clone(&self.con);
-
-        task::spawn_blocking(move || {
-            let con_guard = con_arc
-                .lock()
-                .unwrap();
-
-            let dup_check: Option<bool> = con_guard.query_one(
-                "SELECT w.word_lowercase FROM words w WHERE w.word_lowercase = ?1",
-                [possible_duplicate.to_lowercase()],
+            let dup_check: Option<i32> = con_guard.query_one(
+                "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
+                [word.to_lowercase()],
                 |row| Ok(row.get(0)?)
-            ).optional()?;
+            ).unwrap_or(None);
 
-            match dup_check {
-                None => Ok(false),
-                Some(_) => Ok(true)
+            if let None = dup_check {
+                con_guard.execute(
+                    "INSERT INTO words (word_lowercase, word_pretty) VALUES (?1, ?2)",
+                    [word.to_lowercase(), word])?;
             }
+
+            Ok(())
         }).await?
     }
     
@@ -104,72 +90,29 @@ impl DbClient {
                 [next_word.to_lowercase()],
                 |row| Ok(row.get(0)?))?;
 
+            let dupe_check: Option<i32> = con_guard
+                .query_one("SELECT id FROM word_chaining wc WHERE wc.word_id = ?1 AND wc.next_word_id = ?2 AND wc.guild_id = ?3",
+                           (cur_word_id.unwrap(), next_word_id.unwrap(), guild_id.clone()),
+                           |row| Ok(row.get(0)?))
+                .unwrap_or(None);
+
             // TODO: Code the possibility of lone word case
-            if cur_word_id.is_some() && next_word_id.is_some() {
-                con_guard.execute(
-                    "INSERT INTO word_chaining (word_id, next_word_id, frequency, guild_id) VALUES (?1, ?2, ?3, ?4)"
-                    , (cur_word_id.unwrap(), next_word_id.unwrap(), 1, guild_id))?;
-            }
-
-            Ok(())
-        }).await?
-    }
-
-    pub(crate) async fn increase_chain_frequency(&self, current_word: String, next_word: String) -> RusqliteResult<(), DbError> {
-        let con_arc = Arc::clone(&self.con);
-
-        task::spawn_blocking(move || {
-            let con_guard = con_arc
-                .lock()
-                .unwrap();
-
-            let cur_word_id: Option<i32> = con_guard.query_one(
-                "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
-                [current_word.to_lowercase()],
-                |row| Ok(row.get(0)?))?;
-
-            let next_word_id: Option<i32> = con_guard.query_one(
-                "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
-                [next_word.to_lowercase()],
-                |row| Ok(row.get(0)?))?;
-
-            con_guard
-                .execute("UPDATE word_chaining SET frequency = frequency + 1 WHERE word_id = ?1 AND next_word_id = ?2",
-                         [cur_word_id.unwrap(), next_word_id.unwrap()])?;
-
-            Ok(())
-        }).await?
-    }
-
-    pub(crate) async fn is_word_chaining_duplicate(&self, current_word: &String, next_word: &String) -> RusqliteResult<bool, DbError> {
-        let con_arc = Arc::clone(&self.con);
-        let cw = current_word.clone();
-        let nw = next_word.clone();
-
-        task::spawn_blocking(move || {
-            let con_guard = con_arc
-                .lock()
-                .unwrap();
-
-            let cur_word_id: Option<i32> = con_guard.query_one(
-                "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
-                [cw.to_lowercase()],
-                |row| Ok(row.get(0)?))?;
-
-            let next_word_id: Option<i32> = con_guard.query_one(
-                "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
-                [nw.to_lowercase()],
-                |row| Ok(row.get(0)?))?;
-
-            let dupe_check: Option<bool> = con_guard
-                .query_one("SELECT id FROM word_chaining wc WHERE wc.word_id = ?1 AND wc.next_word_id = ?2",
-                           [cur_word_id.unwrap(), next_word_id.unwrap()],
-                                |row| Ok(row.get(0)?)).optional()?;
-
             match dupe_check {
-                None => Ok(false),
-                Some(_) => Ok(true)
-            }
+                None => {
+                    if cur_word_id.is_some() && next_word_id.is_some() {
+                        con_guard.execute(
+                            "INSERT INTO word_chaining (word_id, next_word_id, frequency, guild_id) VALUES (?1, ?2, ?3, ?4)"
+                            , (cur_word_id.unwrap(), next_word_id.unwrap(), 1, guild_id))?;
+                    }
+                },
+                Some(id) => {
+                    con_guard
+                        .execute("UPDATE word_chaining SET frequency = frequency + 1 WHERE id = ?1",
+                                 [id])?;
+                }
+            };
+
+            Ok(())
         }).await?
     }
 

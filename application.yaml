@@ -9,17 +9,3 @@ std_config:
   
 db:
   path: 'db/ceres_markov_fauna.db'
-
-interaction_trigger:
-  hello: 
-    - hello
-    - hi
-    - wassup
-    - whats up
-    - hey
-  mood:
-    - how you doing
-    - how are you
-    - you doing good
-    - you alright
-  

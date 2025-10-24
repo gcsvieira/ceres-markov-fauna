@@ -11,7 +11,7 @@ use crate::storage::db_client::DbClient;
 
 pub(crate) async fn tokenize_text(text: String) -> Option<Vec<String>> {
     let re = Regex::new(
-        r"(https?://\S+)|(<:[a-zA-Z0-9_]+:[0-9]+>)|([^,.:;'?!@#$%&*(){}\[\]<>/_— ]+)|([,.:;'?!@#$%&*(){}\[\]<>/_—])")
+        r"(https?:\/\/\S+)|(<:[a-zA-Z0-9_]+:[0-9]+>)|([^,.:;?!@#$%&*(){}\[\]<>/_— \r\n]+)|([,.:;?!@#$%&*(){}\[\]<>/_—\r\n])")
         .unwrap();
 
     let mut words: Vec<String> = Vec::new();
@@ -19,8 +19,10 @@ pub(crate) async fn tokenize_text(text: String) -> Option<Vec<String>> {
     for cap in re.captures_iter(text.as_str()) {
         if cap.get(3).is_some() || cap.get(4).is_some() {
             let token = cap.get(0).unwrap().as_str().to_string();
-            println!("{}", token);
-            words.push(token);
+
+            if token != "\n" && token != "\r" && token != "\r\n" {
+                words.push(token);
+            }
         }
     }
 
@@ -31,8 +33,8 @@ pub(crate) async fn store_sentence(words: Vec<String>, guild_id: u64, db_client:
     let vec_for_chaining = words.clone();
 
     for word in words {
-        if let Ok(false) = db_client.is_word_duplicate(word.clone()).await {
-            db_client.store_word(word.clone()).await?;
+        if let Err(why) = db_client.store_word(word.clone()).await {
+            error!("[{}] Error storing word: {}", guild_id, why);
         }
     }
 
@@ -40,12 +42,9 @@ pub(crate) async fn store_sentence(words: Vec<String>, guild_id: u64, db_client:
         let current_word = vec_for_chaining[i].clone();
         let next_word = vec_for_chaining[i + 1].clone();
 
-        match db_client.is_word_chaining_duplicate(&current_word, &next_word).await {
-            Ok(false) => db_client.store_word_chaining(guild_id, next_word, current_word).await?,
-            Ok(true) => db_client.increase_chain_frequency(current_word, next_word).await?,
-            Err(e) => error!("Failed to store word chaining: {}", e)
+        if let Err(why) = db_client.store_word_chaining(guild_id, current_word, next_word).await {
+            error!("[{}] Failed to store word chaining: {}", guild_id, why)
         }
-
     }
 
     Ok(())
