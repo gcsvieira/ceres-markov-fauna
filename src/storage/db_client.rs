@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use rusqlite::{Connection, OptionalExtension, Result as RusqliteResult};
 use tokio::task;
 use crate::errors::db_error::DbError;
@@ -86,7 +86,7 @@ impl DbClient {
         }).await?
     }
     
-    pub(crate) async fn store_word_chaining(&self, current_word: String, next_word: String) -> RusqliteResult<(), DbError> {
+    pub(crate) async fn store_word_chaining(&self, guild_id: u64, current_word: String, next_word: String) -> RusqliteResult<(), DbError> {
         let con_arc = Arc::clone(&self.con);
         
         task::spawn_blocking(move || {
@@ -104,33 +104,18 @@ impl DbClient {
                 [next_word.to_lowercase()],
                 |row| Ok(row.get(0)?))?;
 
+            // TODO: Code the possibility of lone word case
             if cur_word_id.is_some() && next_word_id.is_some() {
                 con_guard.execute(
-                    "INSERT INTO word_chaining (word_id, next_word_id, frequency) VALUES (?1, ?2, ?3)"
-                    , [cur_word_id.unwrap(), next_word_id.unwrap(), 1])?;
+                    "INSERT INTO word_chaining (word_id, next_word_id, frequency, guild_id) VALUES (?1, ?2, ?3, ?4)"
+                    , (cur_word_id.unwrap(), next_word_id.unwrap(), 1, guild_id))?;
             }
 
             Ok(())
         }).await?
     }
 
-    pub(crate) async fn increase_chain_frequency(&self, id: i32) -> RusqliteResult<(), DbError> {
-        let con_arc = Arc::clone(&self.con);
-
-        task::spawn_blocking(move || {
-            let con_guard = con_arc
-                .lock()
-                .unwrap();
-
-            con_guard
-                .execute("UPDATE word_chaining SET frequency = frequency + 1 WHERE id = ?1",
-                         [id])?;
-
-            Ok(())
-        }).await?
-    }
-
-    pub(crate) async fn is_word_chaining_duplicate(&self, current_word: String, next_word: String) -> RusqliteResult<bool, DbError> {
+    pub(crate) async fn increase_chain_frequency(&self, current_word: String, next_word: String) -> RusqliteResult<(), DbError> {
         let con_arc = Arc::clone(&self.con);
 
         task::spawn_blocking(move || {
@@ -147,6 +132,36 @@ impl DbClient {
                 "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
                 [next_word.to_lowercase()],
                 |row| Ok(row.get(0)?))?;
+
+            con_guard
+                .execute("UPDATE word_chaining SET frequency = frequency + 1 WHERE word_id = ?1 AND next_word_id = ?2",
+                         [cur_word_id.unwrap(), next_word_id.unwrap()])?;
+
+            Ok(())
+        }).await?
+    }
+
+    pub(crate) async fn is_word_chaining_duplicate(&self, current_word: &String, next_word: &String) -> RusqliteResult<bool, DbError> {
+        let con_arc = Arc::clone(&self.con);
+        let cw = current_word.clone();
+        let nw = next_word.clone();
+
+        task::spawn_blocking(move || {
+            let con_guard = con_arc
+                .lock()
+                .unwrap();
+
+            let cur_word_id: Option<i32> = con_guard.query_one(
+                "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
+                [cw.to_lowercase()],
+                |row| Ok(row.get(0)?))?;
+            println!("{:?}", cur_word_id);
+
+            let next_word_id: Option<i32> = con_guard.query_one(
+                "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
+                [nw.to_lowercase()],
+                |row| Ok(row.get(0)?))?;
+            println!("{:?}", next_word_id);
 
             let dupe_check: Option<bool> = con_guard
                 .query_one("SELECT id FROM word_chaining wc WHERE wc.word_id = ?1 AND wc.next_word_id = ?2",

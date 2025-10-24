@@ -98,7 +98,7 @@ impl EventHandler for Handler {
         }
 
         if let Some(words) = tokenize_text(msg.content.to_string()).await {
-            if let Err(why) = store_sentence(words, &self.db).await {
+            if let Err(why) = store_sentence(words,msg.guild_id.unwrap().get(), &self.db).await {
                 error!("[{}] Error when storing words to db: {}", msg.guild_id.unwrap().get(), why);
             }
         }

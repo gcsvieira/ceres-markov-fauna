@@ -4,6 +4,7 @@ use rand::Rng;
 use rand::distributions::WeightedIndex;
 use rand::prelude::SliceRandom;
 use std::io;
+use log::error;
 use regex::Regex;
 use crate::errors::db_error::DbError;
 use crate::storage::db_client::DbClient;
@@ -18,6 +19,7 @@ pub(crate) async fn tokenize_text(text: String) -> Option<Vec<String>> {
     for cap in re.captures_iter(text.as_str()) {
         if cap.get(3).is_some() || cap.get(4).is_some() {
             let token = cap.get(0).unwrap().as_str().to_string();
+            println!("{}", token);
             words.push(token);
         }
     }
@@ -25,11 +27,25 @@ pub(crate) async fn tokenize_text(text: String) -> Option<Vec<String>> {
     Some(words)
 }
 
-pub(crate) async fn store_sentence(words: Vec<String>, db_client: &DbClient) -> Result<(), DbError> {
-    for word in &words {
-        if let Ok(true) = db_client.is_word_duplicate(word.clone()).await {
+pub(crate) async fn store_sentence(words: Vec<String>, guild_id: u64, db_client: &DbClient) -> Result<(), DbError> {
+    let vec_for_chaining = words.clone();
+
+    for word in words {
+        if let Ok(false) = db_client.is_word_duplicate(word.clone()).await {
             db_client.store_word(word.clone()).await?;
         }
+    }
+
+    for i in 0..(vec_for_chaining.len() - 1) {
+        let current_word = vec_for_chaining[i].clone();
+        let next_word = vec_for_chaining[i + 1].clone();
+
+        match db_client.is_word_chaining_duplicate(&current_word, &next_word).await {
+            Ok(false) => db_client.store_word_chaining(guild_id, next_word, current_word).await?,
+            Ok(true) => db_client.increase_chain_frequency(current_word, next_word).await?,
+            Err(e) => error!("Failed to store word chaining: {}", e)
+        }
+
     }
 
     Ok(())
