@@ -4,22 +4,34 @@ use rand::Rng;
 use rand::distributions::WeightedIndex;
 use rand::prelude::SliceRandom;
 use std::io;
-use log::info;
+use regex::Regex;
 use crate::errors::db_error::DbError;
 use crate::storage::db_client::DbClient;
 
-pub(crate) async fn store_text(text: String, guild_id: u64, db_client: &DbClient) -> Result<(), DbError> {
+pub(crate) async fn tokenize_text(text: String) -> Option<Vec<String>> {
+    let re = Regex::new(
+        r"(https?://\S+)|(<:[a-zA-Z0-9_]+:[0-9]+>)|([^,.:;'?!@#$%&*(){}\[\]<>/_— ]+)|([,.:;'?!@#$%&*(){}\[\]<>/_—])")
+        .unwrap();
 
-    let words: Vec<String> = text.split_whitespace().map(String::from).collect();
+    let mut words: Vec<String> = Vec::new();
 
-    // TODO: check for links, duplicated words and emotes she can't use. They shouldn't be added.
-
-    for word in words {
-        if let Ok(true) = db_client.is_not_duplicate(word.clone()).await {
-            db_client.store_word(word).await?
+    for cap in re.captures_iter(text.as_str()) {
+        if cap.get(3).is_some() || cap.get(4).is_some() {
+            let token = cap.get(0).unwrap().as_str().to_string();
+            words.push(token);
         }
     }
-    
+
+    Some(words)
+}
+
+pub(crate) async fn store_sentence(words: Vec<String>, db_client: &DbClient) -> Result<(), DbError> {
+    for word in &words {
+        if let Ok(true) = db_client.is_word_duplicate(word.clone()).await {
+            db_client.store_word(word.clone()).await?;
+        }
+    }
+
     Ok(())
 }
 

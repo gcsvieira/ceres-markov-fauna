@@ -1,4 +1,4 @@
-use crate::core::text_handler::store_text;
+use crate::core::text_handler::store_sentence;
 use crate::discord::commands_old::Commands;
 use crate::storage::app_properties_model::PROPERTIES;
 use crate::storage::guild_config_model::Config;
@@ -34,11 +34,6 @@ impl MessageHandler {
                         .inspect_err(|e| { error!("There was an error trying to extract the current command of the guild: {}", e) })
                         .ok()
                 } else {
-                    match store_text(self.content.clone(), self.guild_id, db_client).await {
-                        Ok(_) => (),
-                        Err(e) => error!("There was an error trying to store the message: {}", e)
-                    };
-
                     None
                 }
             }
