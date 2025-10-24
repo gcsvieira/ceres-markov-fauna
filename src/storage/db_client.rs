@@ -155,13 +155,11 @@ impl DbClient {
                 "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
                 [cw.to_lowercase()],
                 |row| Ok(row.get(0)?))?;
-            println!("{:?}", cur_word_id);
 
             let next_word_id: Option<i32> = con_guard.query_one(
                 "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
                 [nw.to_lowercase()],
                 |row| Ok(row.get(0)?))?;
-            println!("{:?}", next_word_id);
 
             let dupe_check: Option<bool> = con_guard
                 .query_one("SELECT id FROM word_chaining wc WHERE wc.word_id = ?1 AND wc.next_word_id = ?2",
