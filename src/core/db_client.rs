@@ -1,7 +1,9 @@
 use std::sync::{Arc, Mutex};
+use log::error;
 use rusqlite::{Connection, OptionalExtension, Result as RusqliteResult};
 use tokio::task;
 use crate::errors::db_error::DbError;
+use crate::storage::app_properties_model::Db;
 use crate::storage::db_model::GuildModel;
 
 #[derive(Clone)]
@@ -60,7 +62,7 @@ impl DbClient {
                 "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
                 [word.to_lowercase()],
                 |row| Ok(row.get(0)?)
-            ).unwrap_or(None);
+            ).ok();
 
             if let None = dup_check {
                 con_guard.execute(
@@ -85,16 +87,18 @@ impl DbClient {
                 [current_word.to_lowercase()],
                 |row| Ok(row.get(0)?))?;
 
+
             let next_word_id: Option<i32> = con_guard.query_one(
                 "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
                 [next_word.to_lowercase()],
-                |row| Ok(row.get(0)?))?;
+                |row| Ok(row.get(0)?))
+                .ok();
 
             let dupe_check: Option<i32> = con_guard
                 .query_one("SELECT id FROM word_chaining wc WHERE wc.word_id = ?1 AND wc.next_word_id = ?2 AND wc.guild_id = ?3",
-                           (cur_word_id.unwrap(), next_word_id.unwrap(), guild_id.clone()),
+                           (cur_word_id.unwrap(), next_word_id.unwrap_or(287), guild_id.clone()),
                            |row| Ok(row.get(0)?))
-                .unwrap_or(None);
+                .ok();
 
             // TODO: Code the possibility of lone word case
             match dupe_check {
@@ -153,5 +157,27 @@ impl DbClient {
                 Ok(None)
             }
         }).await?
+    }
+
+    pub(crate) async fn count_words(&self, guild_id: u64) -> RusqliteResult<Option<usize>, DbError> {
+        let con_arc = Arc::clone(&self.con);
+        task::spawn_blocking(move || {
+            let con_guard = con_arc
+                .lock()
+                .unwrap();
+
+            let count: Option<usize> = con_guard.query_one(
+                "SELECT COUNT(DISTINCT words.word_id)
+                FROM (SELECT word_id AS word_id FROM word_chaining wc WHERE wc.guild_id = ?1
+                UNION
+                SELECT next_word_id AS word_id FROM word_chaining wc WHERE wc.guild_id = ?1) words;",
+                [guild_id],
+                |row| Ok(row.get(0)?))
+                .ok();
+
+            Ok(count)
+        }).await?
+
+
     }
 }

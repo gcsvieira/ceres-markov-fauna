@@ -2,7 +2,7 @@ use std::io;
 use crate::discord::answers::Answers;
 use crate::storage::guild_config_model::Config;
 use crate::utils::file_utils::FileOperations;
-use crate::core::text_handler::generate_text;
+use crate::core::text_handler::generate_sentence;
 
 pub(super) const HELP: &str = "help";
 pub(super) const VERSION: &str = "version";
@@ -96,7 +96,7 @@ impl Commands {
 
                 Answers::ChangePrefix.output_answer(content, guild_id)
             }
-            Self::Generate => Answers::Generate.output_answer(Some(generate_text(guild_id)?), guild_id),
+            Self::Generate => Ok("T".to_string()),
             Self::Echo => Answers::Echo.output_answer(content, guild_id),
             Self::Ping => Answers::Ping.output_answer(None, guild_id),
             Self::Help => Answers::Help.output_answer(None, guild_id),

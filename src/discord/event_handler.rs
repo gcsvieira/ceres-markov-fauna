@@ -1,8 +1,7 @@
-use crate::core::message_handler::MessageHandler;
 use crate::storage::guild_config_model::Config;
 use log::{error, info, warn};
 use poise::serenity_prelude as serenity;
-use serenity::all::{ChannelId, CreateMessage, Guild};
+use serenity::all::{CreateMessage, Guild};
 use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready},
@@ -10,7 +9,7 @@ use serenity::{
 };
 use std::fs;
 use crate::core::text_handler::{store_sentence, tokenize_text};
-use crate::storage::db_client::DbClient;
+use crate::core::db_client::DbClient;
 use crate::discord::answers::Answers;
 use crate::storage::app_properties_model::PROPERTIES;
 use crate::utils::file_utils::FileOperations;
@@ -23,7 +22,7 @@ pub(crate) struct Handler {
 impl EventHandler for Handler {
     // This will trigger whenever a new server adds the bot or when the bot service is started.
     // In the latter case, it will check all the servers that currently have the bot.
-    async fn guild_create(&self, ctx: Context, guild: Guild, is_new: Option<bool>) {
+    async fn guild_create(&self, ctx: Context, guild: Guild, _is_new: Option<bool>) {
         let guild_name_uppercase = guild.name.to_ascii_uppercase();
         let mut guild_directory = None;
 
@@ -84,7 +83,7 @@ impl EventHandler for Handler {
     }
 
     // this will trigger whenever any message is sent on the servers the bot's in
-    async fn message(&self, ctx: Context, msg: Message) {
+    async fn message(&self, _ctx: Context, msg: Message) {
         if msg.author.bot {
             return;
         };

@@ -1,11 +1,9 @@
-use crate::core::text_handler::store_sentence;
 use crate::discord::commands_old::Commands;
 use crate::storage::app_properties_model::PROPERTIES;
 use crate::storage::guild_config_model::Config;
 use log::error;
 use std::io;
-use serenity::futures::TryFutureExt;
-use crate::storage::db_client::DbClient;
+use crate::core::db_client::DbClient;
 
 pub(crate) struct MessageHandler {
     pub(crate) content: String,
