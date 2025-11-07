@@ -1,8 +1,8 @@
-use std::io;
 use crate::discord::answers::Answers;
 use crate::storage::guild_config_model::Config;
 use crate::utils::file_utils::FileOperations;
-use crate::core::text_handler::generate_sentence;
+use std::io;
+// use crate::core::text_handler::generate_sentence;
 
 pub(super) const HELP: &str = "help";
 pub(super) const VERSION: &str = "version";
@@ -35,10 +35,9 @@ pub(crate) enum Commands {
 }
 
 impl Commands {
-
     pub(crate) fn parse_to_command(command: Option<String>) -> Commands {
         let com = command.unwrap_or("unknown".to_string());
-        
+
         match com.as_str() {
             HELP => Self::Help,
             COMMANDS => Self::Commands,
@@ -68,31 +67,34 @@ impl Commands {
             Self::ChangePrefix => Answers::ChangePrefix,
             Self::ChangeCommandIndicator => Answers::ChangeCommandIndicator,
             Self::Generate => Answers::Generate,
-            // Make a stat command that will exhibit most words used 
+            // Make a stat command that will exhibit most words used
             Self::Hello => Answers::Hello,
             _ => Answers::Unknown,
         }
     }
-    
-    pub(crate) fn execute_command(&self, content: Option<String>, guild_id: u64) -> Result<String, io::Error> {
-        match self { 
+
+    pub(crate) fn execute_command(
+        &self,
+        content: Option<String>,
+        guild_id: u64,
+    ) -> Result<String, io::Error> {
+        match self {
             Self::ChangeCommandIndicator => {
                 Config::from_file(guild_id)?
-                    .change_command_ind(content.clone()
-                        .unwrap()
-                        .pop()
-                        .unwrap())
-                    .save_to_file(guild_id).expect("Failed to change the command indicator for the server");
-                
-                Ok(format!("Alright! The new command indicator for your server will be \"{}\"!", content.unwrap()))
+                    .change_command_ind(content.clone().unwrap().pop().unwrap())
+                    .save_to_file(guild_id)
+                    .expect("Failed to change the command indicator for the server");
+
+                Ok(format!(
+                    "Alright! The new command indicator for your server will be \"{}\"!",
+                    content.unwrap()
+                ))
             }
             Self::ChangePrefix => {
                 Config::from_file(guild_id)?
-                    .change_prefix(content
-                        .clone()
-                        .unwrap()
-                        .to_string())
-                    .save_to_file(guild_id).expect("Failed to change the prefix for server: {}");
+                    .change_prefix(content.clone().unwrap().to_string())
+                    .save_to_file(guild_id)
+                    .expect("Failed to change the prefix for server: {}");
 
                 Answers::ChangePrefix.output_answer(content, guild_id)
             }
@@ -105,7 +107,8 @@ impl Commands {
             Self::TableStatus => Answers::TableStatus.output_answer(None, guild_id),
             Self::ResetTable => Answers::ResetTable.output_answer(None, guild_id),
             Self::Hello => Answers::Hello.output_answer(None, guild_id),
-            _ => Answers::Unknown.output_answer(None, guild_id)
+            _ => Answers::Unknown.output_answer(None, guild_id),
         }
     }
 }
+

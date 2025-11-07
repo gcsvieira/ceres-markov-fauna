@@ -1,4 +1,3 @@
-use crate::utils::file_utils::FileOperations;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io;
@@ -10,7 +9,6 @@ pub(crate) struct GuildModel {
     pub(crate) system_channel_id: Option<u64>,
 }
 
-
 #[derive(Deserialize, Serialize, Debug)]
 pub(crate) struct WordEntry {
     pub(crate) next_words: Option<HashMap<String, u32>>,
@@ -19,6 +17,15 @@ pub(crate) struct WordEntry {
 #[derive(Deserialize, Serialize, Debug)]
 pub(crate) struct Markov {
     pub(crate) words: Option<HashMap<String, WordEntry>>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub(crate) struct WordChaining {
+    pub(crate) id: u64,
+    pub(crate) word_id: u64,
+    pub(crate) next_word_id: u64,
+    pub(crate) frequency: u32,
+    pub(crate) guild_id: u64,
 }
 
 impl Markov {

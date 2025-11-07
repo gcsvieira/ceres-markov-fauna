@@ -1,10 +1,8 @@
-use std::sync::{Arc, Mutex};
-use log::error;
-use rusqlite::{Connection, OptionalExtension, Result as RusqliteResult};
-use tokio::task;
 use crate::errors::db_error::DbError;
-use crate::storage::app_properties_model::Db;
-use crate::storage::db_model::GuildModel;
+use crate::storage::db_model::{GuildModel, WordChaining};
+use rusqlite::{Connection, OptionalExtension, Result as RusqliteResult};
+use std::sync::{Arc, Mutex};
+use tokio::task;
 
 #[derive(Clone)]
 pub(crate) struct DbClient {
@@ -14,7 +12,7 @@ pub(crate) struct DbClient {
 impl DbClient {
     pub(crate) async fn new(db_path: &str) -> Result<Self, DbError> {
         let path = db_path.to_string();
-        
+
         let con = task::spawn_blocking(move || -> RusqliteResult<Connection> {
             let con = Connection::open(&path)?;
 
@@ -23,14 +21,16 @@ impl DbClient {
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         word_lowercase VARCHAR(50) NOT NULL UNIQUE,
                         word_pretty VARCHAR(50) NOT NULL)",
-                [])?;
+                [],
+            )?;
 
             con.execute(
                 "CREATE TABLE IF NOT EXISTS guilds (
                 id BIGINT PRIMARY KEY,
                 name VARCHAR(50) NOT NULL UNIQUE,
                 system_channel_id BIGINT)",
-                [])?;
+                [],
+            )?;
 
             con.execute(
                 "CREATE TABLE IF NOT EXISTS word_chaining (
@@ -42,41 +42,52 @@ impl DbClient {
                         FOREIGN KEY(guild_id) REFERENCES guilds(id),
                         FOREIGN KEY(word_id) REFERENCES words(id),
                         FOREIGN KEY(next_word_id) REFERENCES words(id))",
-                [])?;
+                [],
+            )?;
 
             Ok(con)
-        }).await??;
-        
-        Ok(DbClient { con: Arc::new(Mutex::new(con)) })
+        })
+        .await??;
+
+        Ok(DbClient {
+            con: Arc::new(Mutex::new(con)),
+        })
     }
-    
+
     pub(crate) async fn store_word(&self, word: String) -> RusqliteResult<(), DbError> {
         let con_arc = Arc::clone(&self.con);
-        
-        task::spawn_blocking(move || {
-            let con_guard = con_arc
-                .lock()
-                .unwrap();
 
-            let dup_check: Option<i32> = con_guard.query_one(
-                "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
-                [word.to_lowercase()],
-                |row| Ok(row.get(0)?)
-            ).ok();
+        task::spawn_blocking(move || {
+            let con_guard = con_arc.lock().unwrap();
+
+            let dup_check: Option<i32> = con_guard
+                .query_one(
+                    "SELECT w.id FROM words w WHERE w.word_lowercase = ?1",
+                    [word.to_lowercase()],
+                    |row| Ok(row.get(0)?),
+                )
+                .ok();
 
             if let None = dup_check {
                 con_guard.execute(
                     "INSERT INTO words (word_lowercase, word_pretty) VALUES (?1, ?2)",
-                    [word.to_lowercase(), word])?;
+                    [word.to_lowercase(), word],
+                )?;
             }
 
             Ok(())
-        }).await?
+        })
+        .await?
     }
-    
-    pub(crate) async fn store_word_chaining(&self, guild_id: u64, current_word: String, next_word: String) -> RusqliteResult<(), DbError> {
+
+    pub(crate) async fn store_word_chaining(
+        &self,
+        guild_id: u64,
+        current_word: String,
+        next_word: String,
+    ) -> RusqliteResult<(), DbError> {
         let con_arc = Arc::clone(&self.con);
-        
+
         task::spawn_blocking(move || {
             let con_guard = con_arc
                 .lock()
@@ -120,46 +131,63 @@ impl DbClient {
         }).await?
     }
 
-    pub(crate) async fn store_guild(&self, guild_id: u64, guild_name: String, system_channel_id: Option<u64>) -> RusqliteResult<(), DbError> {
+    pub(crate) async fn store_guild(
+        &self,
+        guild_id: u64,
+        guild_name: String,
+        system_channel_id: Option<u64>,
+    ) -> RusqliteResult<(), DbError> {
         let con_arc = Arc::clone(&self.con);
 
         task::spawn_blocking(move || {
-            let con_guard = con_arc
-                .lock()
-                .unwrap();
+            let con_guard = con_arc.lock().unwrap();
 
             con_guard.execute(
                 "INSERT INTO guilds (id, name, system_channel_id) VALUES (?1, ?2, ?3)",
-                (guild_id, guild_name, system_channel_id))?;
+                (guild_id, guild_name, system_channel_id),
+            )?;
 
             Ok(())
-        }).await?
+        })
+        .await?
     }
 
-    pub(crate) async fn is_guild_new(&self, guild_id: u64) -> RusqliteResult<Option<GuildModel>, DbError> {
+    pub(crate) async fn is_guild_new(
+        &self,
+        guild_id: u64,
+    ) -> RusqliteResult<Option<GuildModel>, DbError> {
         let con_arc = Arc::clone(&self.con);
 
         task::spawn_blocking(move || {
-            let con_guard = con_arc
-                .lock()
-                .unwrap();
+            let con_guard = con_arc.lock().unwrap();
 
             let check_guild = con_guard
-                .query_one("SELECT * FROM guilds g WHERE g.id = ?1", [guild_id], |row| Ok(GuildModel {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    system_channel_id: row.get(2)?,
-                })).optional();
+                .query_one(
+                    "SELECT * FROM guilds g WHERE g.id = ?1",
+                    [guild_id],
+                    |row| {
+                        Ok(GuildModel {
+                            id: row.get(0)?,
+                            name: row.get(1)?,
+                            system_channel_id: row.get(2)?,
+                        })
+                    },
+                )
+                .optional();
 
             return if let Some(guild) = check_guild? {
                 Ok(Some(guild))
             } else {
                 Ok(None)
-            }
-        }).await?
+            };
+        })
+        .await?
     }
 
-    pub(crate) async fn count_words(&self, guild_id: u64) -> RusqliteResult<Option<usize>, DbError> {
+    pub(crate) async fn count_words(
+        &self,
+        guild_id: u64,
+    ) -> RusqliteResult<Option<usize>, DbError> {
         let con_arc = Arc::clone(&self.con);
         task::spawn_blocking(move || {
             let con_guard = con_arc
@@ -177,7 +205,60 @@ impl DbClient {
 
             Ok(count)
         }).await?
+    }
 
+    pub(crate) async fn extract_words(
+        &self,
+        guild_id: u64,
+    ) -> RusqliteResult<Vec<WordChaining>, DbError> {
+        let con_arc = Arc::clone(&self.con);
+        task::spawn_blocking(move || {
+            let con_guard = con_arc.lock().unwrap();
 
+            let mut query = con_guard.prepare(
+                "SELECT * 
+                FROM word_chaining wc
+                WHERE wc.guild_id = ?1;",
+            )?;
+
+            let words_iter = query.query_map([guild_id], |row| {
+                Ok(WordChaining {
+                    id: row.get(0)?,
+                    word_id: row.get(1)?,
+                    next_word_id: row.get(2)?,
+                    frequency: row.get(4)?,
+                    guild_id: row.get(5)?,
+                })
+            })?;
+
+            let mut extracted_words: Vec<WordChaining> = Vec::new();
+
+            for word_row in words_iter {
+                extracted_words.push(word_row?);
+            }
+
+            Ok(extracted_words)
+        })
+        .await?
+    }
+
+    pub(crate) async fn get_word_pretty(&self, word_id: &u64) -> RusqliteResult<Option<String>, DbError> {
+        let w_id = word_id.clone();
+        let con_arc = Arc::clone(&self.con);
+        task::spawn_blocking(move || {
+            let con_guard = con_arc.lock().unwrap();
+
+            let word_pretty: Option<String> = con_guard
+                .query_one("
+                    SELECT w.word_pretty
+                    FROM words w
+                    WHERE w.word_id = ?1;",
+                   [w_id],
+                   |row| Ok(row.get(0)?))
+                .ok();
+
+            Ok(word_pretty)
+        })
+        .await?
     }
 }
