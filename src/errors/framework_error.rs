@@ -1,3 +1,4 @@
+use std::backtrace::Backtrace;
 use log::error as log_error;
 use std::error as std_error;
 use crate::Data;
@@ -13,7 +14,8 @@ pub(crate) async fn on_error(error: FrameworkError<'_>) {
             }
         }
         _ => {
-            log_error!("Error handling for this is not implemented yet! Reason: {}", error)
+            log_error!("Error handling for this is not implemented yet! Reason: {}\n \
+            {}", error, Backtrace::capture())
         }
     }
 }

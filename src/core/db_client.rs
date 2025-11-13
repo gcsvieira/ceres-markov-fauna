@@ -226,8 +226,8 @@ impl DbClient {
                     id: row.get(0)?,
                     word_id: row.get(1)?,
                     next_word_id: row.get(2)?,
-                    frequency: row.get(4)?,
-                    guild_id: row.get(5)?,
+                    frequency: row.get(3)?,
+                    guild_id: row.get(4)?,
                 })
             })?;
 
@@ -242,6 +242,39 @@ impl DbClient {
         .await?
     }
 
+    pub(crate) async fn get_next_words(&self, word_id: &u64, guild_id: u64) -> RusqliteResult<Vec<WordChaining>, DbError> {
+        let w_id = word_id.clone();
+        let con_arc = Arc::clone(&self.con);
+        task::spawn_blocking(move || {
+            let con_guard = con_arc.lock().unwrap();
+
+            let mut query = con_guard.prepare(
+                "SELECT *
+                FROM word_chaining wc
+                WHERE wc.guild_id = ?1 AND wc.word_id = ?2;",
+            )?;
+
+            let words_iter = query.query_map([guild_id, w_id], |row| {
+                Ok(WordChaining {
+                    id: row.get(0)?,
+                    word_id: row.get(1)?,
+                    next_word_id: row.get(2)?,
+                    frequency: row.get(3)?,
+                    guild_id: row.get(4)?,
+                })
+            })?;
+
+            let mut extracted_words: Vec<WordChaining> = Vec::new();
+
+            for word_row in words_iter {
+                extracted_words.push(word_row?);
+            }
+
+            Ok(extracted_words)
+        })
+            .await?
+    }
+
     pub(crate) async fn get_word_pretty(&self, word_id: &u64) -> RusqliteResult<Option<String>, DbError> {
         let w_id = word_id.clone();
         let con_arc = Arc::clone(&self.con);
@@ -252,7 +285,7 @@ impl DbClient {
                 .query_one("
                     SELECT w.word_pretty
                     FROM words w
-                    WHERE w.word_id = ?1;",
+                    WHERE w.id = ?1;",
                    [w_id],
                    |row| Ok(row.get(0)?))
                 .ok();

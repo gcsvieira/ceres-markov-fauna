@@ -1,4 +1,7 @@
+use rand::distributions::Distribution;
+use rand::distributions::WeightedIndex;
 use rand::Rng;
+use rand::prelude::SliceRandom;
 use crate::Data;
 use crate::storage::db_model::WordChaining;
 
@@ -12,10 +15,12 @@ pub(crate) async fn generate(
         u8,
     >,
 ) -> Result<(), Error> {
-    if quantity.is_some() && quantity.unwrap() > 10 {
-        ctx.say("I can only generate up to 10 sentences at once!")
-            .await?;
-        return Ok(());
+    if let Some(q) = quantity {
+        if q > 10 {
+            ctx.say("I can only generate up to 10 sentences at once!")
+                .await?;
+            return Ok(());
+        }
     }
 
     if let Some(0) = quantity {
@@ -27,45 +32,72 @@ pub(crate) async fn generate(
     match quantity {
         None | Some(1) => {
             let sentence = generate_sentence(&ctx).await?;
-            ctx.say(sentence).await?;
+            if !sentence.is_empty() { ctx.say(sentence).await?; }
             Ok(())
         },
         Some(quantity) => {
+            let mut sentences = String::new();
+
             for _ in 0..quantity {
                 let sentence = generate_sentence(&ctx).await?;
-                ctx.say(sentence).await?;
+                sentences = format!("{}\n{}", sentences, sentence)
+                
             }
+
+            if !sentences.is_empty() { ctx.say(sentences).await?; }
             Ok(())
         }
     }
 }
 
 async fn generate_sentence(ctx: &Context<'_>) -> Result<String, Error> {
-    let mut rng = rand::thread_rng();
+    let sentence_length: u8 = rand::thread_rng().gen_range(6..30);
     let mut generated_text: Vec<String> = Vec::new();
 
-    let extracted_words: Vec<WordChaining> = ctx.data().db.extract_words(ctx.guild_id().unwrap().get()).await?;
+    let extracted_words: Vec<WordChaining> = ctx.data().db
+        .extract_words(ctx.guild_id().unwrap().get())
+        .await?;
 
-    let sentence_length: u8 = rng.gen_range(6..30);
-    let word_random = rng.gen_range(0..extracted_words.len());
-    let word_chaining = &extracted_words[word_random];
-    let mut current_word_id = Some(word_chaining.word_id);
-    let current_next_word_id = Some(word_chaining.next_word_id);
+    let mut current_word_id = match extracted_words.choose(&mut rand::thread_rng()) {
+        Some(word) => word.word_id,
+        None => 0
+    };
 
-    // TODO: word extraction has to be inside the loop as well. when current word and current next word are set, current next becomes current word and there needs to be another search on the db again
     for _ in 0..sentence_length {
-        match ctx.data().db.get_word_pretty(&current_word_id.unwrap()).await? {
+        match ctx.data().db.get_word_pretty(&current_word_id).await? {
             Some(word_pretty) => {
                 generated_text.push(word_pretty);
             }
             None => continue
         };
 
-        if let Some(next_word_pretty) = ctx.data().db.get_word_pretty(&current_next_word_id.unwrap()).await? {
-            generated_text.push(next_word_pretty);
+        let next_words = ctx.data().db
+            .get_next_words(&current_word_id, ctx.guild_id().unwrap().get()).await?;
+
+        let mut candidates: Vec<u64> = Vec::new();
+        let mut weights: Vec<u32> = Vec::new();
+
+        for word in next_words {
+            candidates.push(word.word_id);
+            weights.push(word.frequency);
         }
 
-        current_word_id = current_next_word_id
+        if candidates.is_empty() {
+            break;
+        }
+
+        let distribution = match WeightedIndex::new(&weights) {
+            Ok(dist) => dist,
+            Err(_) => {
+                break;
+            }
+        };
+
+        let current_next_word_id: u64 = distribution
+            .sample(&mut rand::thread_rng()) as u64;
+
+        current_word_id = current_next_word_id;
+
     }
 
     Ok(generated_text.join(" "))

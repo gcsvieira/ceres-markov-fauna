@@ -79,7 +79,7 @@ pub(crate) async fn store_sentence(
 //     let sentence_length = rng.gen_range(6..30);
 //     let mut generated_text: Vec<String> = Vec::new();
 //
-//     let words = db_client.extract_words(guild_id);
+//     let words_map = db_client.extract_words(guild_id);
 //
 //
 //     let initial_word_candidates: Vec<&String> = words_map.keys().collect();

@@ -84,7 +84,7 @@ async fn main() {
                 word_count(),
                 generate(),
             ],
-            on_error: |error| Box::pin(on_error(error)),
+            // on_error: |error| Box::pin(on_error(error)),
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
