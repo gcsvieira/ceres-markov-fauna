@@ -207,10 +207,7 @@ impl DbClient {
         }).await?
     }
 
-    pub(crate) async fn extract_words(
-        &self,
-        guild_id: u64,
-    ) -> RusqliteResult<Vec<WordChaining>, DbError> {
+    pub(crate) async fn extract_words(&self, guild_id: u64) -> RusqliteResult<Vec<WordChaining>, DbError> {
         let con_arc = Arc::clone(&self.con);
         task::spawn_blocking(move || {
             let con_guard = con_arc.lock().unwrap();

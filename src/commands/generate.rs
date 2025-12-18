@@ -31,17 +31,18 @@ pub(crate) async fn generate(
 
     match quantity {
         None | Some(1) => {
-            let sentence = generate_sentence(&ctx).await?;
-            if !sentence.is_empty() { ctx.say(sentence).await?; }
+            let option_sentence = generate_sentence(&ctx).await;
+            if let Some(sentence) = option_sentence {
+                ctx.say(sentence).await?;
+            }
             Ok(())
         },
         Some(quantity) => {
             let mut sentences = String::new();
 
             for _ in 0..quantity {
-                let sentence = generate_sentence(&ctx).await?;
+                let sentence = generate_sentence(&ctx).await;
                 sentences = format!("{}\n{}", sentences, sentence)
-                
             }
 
             if !sentences.is_empty() { ctx.say(sentences).await?; }
@@ -50,29 +51,37 @@ pub(crate) async fn generate(
     }
 }
 
-async fn generate_sentence(ctx: &Context<'_>) -> Result<String, Error> {
+async fn generate_sentence(ctx: &Context<'_>) -> Option<String> {
     let sentence_length: u8 = rand::thread_rng().gen_range(6..30);
     let mut generated_text: Vec<String> = Vec::new();
 
-    let extracted_words: Vec<WordChaining> = ctx.data().db
+    let extracted_words: Vec<WordChaining> = match ctx.data().db
         .extract_words(ctx.guild_id().unwrap().get())
-        .await?;
+        .await {
+        Ok(words) => words,
+        Err(e) => return None
+    };
 
     let mut current_word_id = match extracted_words.choose(&mut rand::thread_rng()) {
         Some(word) => word.word_id,
-        None => 0
+        None => return None,
     };
 
     for _ in 0..sentence_length {
-        match ctx.data().db.get_word_pretty(&current_word_id).await? {
-            Some(word_pretty) => {
-                generated_text.push(word_pretty);
+        match ctx.data().db.get_word_pretty(&current_word_id).await {
+            Ok(word_pretty) => {
+                if let Some(w_c) = word_pretty {
+                    generated_text.push(w_c);
+                }
             }
-            None => continue
+            Err(_) => continue
         };
 
-        let next_words = ctx.data().db
-            .get_next_words(&current_word_id, ctx.guild_id().unwrap().get()).await?;
+        let next_words = match ctx.data().db
+            .get_next_words(&current_word_id, ctx.guild_id().unwrap().get()).await {
+            Ok(next_words) => next_words,
+            Err(_) => return None
+        };
 
         let mut candidates: Vec<u64> = Vec::new();
         let mut weights: Vec<u32> = Vec::new();
@@ -97,8 +106,6 @@ async fn generate_sentence(ctx: &Context<'_>) -> Result<String, Error> {
             .sample(&mut rand::thread_rng()) as u64;
 
         current_word_id = current_next_word_id;
-
     }
-
-    Ok(generated_text.join(" "))
+    Some(generated_text.join(" "))
 }
