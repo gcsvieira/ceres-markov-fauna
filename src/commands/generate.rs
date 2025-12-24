@@ -1,7 +1,9 @@
 use rand::prelude::IndexedRandom;
 use rand::Rng;
-use crate::Data;
+use crate::{utils, Data};
 use crate::storage::db_model::WordChaining;
+use utils::punctuation_utils::get_punctuation_map;
+use crate::utils::punctuation_utils::Attach;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
@@ -100,6 +102,43 @@ async fn generate_sentence(ctx: &Context<'_>) -> Option<String> {
             None => break,
         };
 
+    }
+
+    let punct_map = get_punctuation_map();
+    for x in 0..generated_text.len() {
+        if generated_text[x].len() > 0 {
+            continue
+        }
+
+        if let None = generated_text.get(x - 1) {
+            continue
+        }
+
+        if let Some(behavior) = punct_map.get(&generated_text[x].chars().nth(0).unwrap()) {
+            if let &Attach::Before = behavior {
+                generated_text[x - 1] = generated_text[x - 1].clone() + &*generated_text[x];
+                generated_text.remove(x);
+            }
+        }
+
+        if let None = generated_text.get(x + 1) {
+            continue
+        }
+
+        if let Some(behavior) = punct_map.get(&generated_text[x].chars().nth(0).unwrap()) {
+            if let &Attach::After = behavior {
+                generated_text[x + 1] = generated_text[x + 1].clone() + &*generated_text[x];
+                generated_text.remove(x);
+            }
+        }
+
+        if let Some(behavior) = punct_map.get(&generated_text[x].chars().nth(0).unwrap()) {
+            if let &Attach::Both = behavior {
+                generated_text[x - 1] = generated_text[x - 1].clone() + &*generated_text[x] + &*generated_text[x + 1];
+                generated_text.remove(x);
+                generated_text.remove(x + 1);
+            }
+        }
     }
     Some(generated_text.join(" "))
 }
