@@ -1,7 +1,5 @@
-use rand::distributions::Distribution;
-use rand::distributions::WeightedIndex;
+use rand::prelude::IndexedRandom;
 use rand::Rng;
-use rand::prelude::SliceRandom;
 use crate::Data;
 use crate::storage::db_model::WordChaining;
 
@@ -41,7 +39,10 @@ pub(crate) async fn generate(
             let mut sentences = String::new();
 
             for _ in 0..quantity {
-                let sentence = generate_sentence(&ctx).await;
+                let sentence = match generate_sentence(&ctx).await {
+                    Some(sentence) => sentence,
+                    None => continue
+                };
                 sentences = format!("{}\n{}", sentences, sentence)
             }
 
@@ -52,22 +53,27 @@ pub(crate) async fn generate(
 }
 
 async fn generate_sentence(ctx: &Context<'_>) -> Option<String> {
-    let sentence_length: u8 = rand::thread_rng().gen_range(6..30);
+    let sentence_length: u8 = rand::random_range(6..30);
     let mut generated_text: Vec<String> = Vec::new();
 
+    // extract all word chainings related to the server
     let extracted_words: Vec<WordChaining> = match ctx.data().db
-        .extract_words(ctx.guild_id().unwrap().get())
+        .extract_words(ctx.guild_id()
+            .unwrap() // using unwrap because we wouldn't be here if there wasn't one
+            .get())
         .await {
         Ok(words) => words,
         Err(e) => return None
     };
 
-    let mut current_word_id = match extracted_words.choose(&mut rand::thread_rng()) {
+    // choose a random initial word id
+    let mut current_word_id = match extracted_words.choose(&mut rand::rng()) {
         Some(word) => word.word_id,
         None => return None,
     };
 
     for _ in 0..sentence_length {
+        // get word pretty and add it to generated_text
         match ctx.data().db.get_word_pretty(&current_word_id).await {
             Ok(word_pretty) => {
                 if let Some(w_c) = word_pretty {
@@ -77,35 +83,23 @@ async fn generate_sentence(ctx: &Context<'_>) -> Option<String> {
             Err(_) => continue
         };
 
+        // get all next word ids related to current word id
         let next_words = match ctx.data().db
-            .get_next_words(&current_word_id, ctx.guild_id().unwrap().get()).await {
+            .get_next_words(&current_word_id, ctx.guild_id()
+                .unwrap()
+                .get())
+            .await {
             Ok(next_words) => next_words,
             Err(_) => return None
         };
 
-        let mut candidates: Vec<u64> = Vec::new();
-        let mut weights: Vec<u32> = Vec::new();
-
-        for word in next_words {
-            candidates.push(word.word_id);
-            weights.push(word.frequency);
-        }
-
-        if candidates.is_empty() {
-            break;
-        }
-
-        let distribution = match WeightedIndex::new(&weights) {
-            Ok(dist) => dist,
-            Err(_) => {
-                break;
-            }
+        // choose a random next word id
+        // make next word become current word and repeat
+        current_word_id = match next_words.choose(&mut rand::rng()) {
+            Some(word) => word.next_word_id,
+            None => break,
         };
 
-        let current_next_word_id: u64 = distribution
-            .sample(&mut rand::thread_rng()) as u64;
-
-        current_word_id = current_next_word_id;
     }
     Some(generated_text.join(" "))
 }

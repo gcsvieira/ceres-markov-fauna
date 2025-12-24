@@ -4,7 +4,7 @@ use log::{error, info};
 use serenity::prelude::*;
 use std::env;
 
-pub(crate) mod commands;
+mod commands;
 mod core;
 mod discord;
 mod errors;
@@ -13,7 +13,7 @@ mod storage;
 mod utils;
 
 use crate::commands::reset_table::reset_table;
-use crate::errors::framework_error::on_error;
+use errors::framework_error::on_error;
 use commands::echo::echo;
 use commands::generate::generate;
 use commands::hello::hello;
