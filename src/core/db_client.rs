@@ -291,4 +291,18 @@ impl DbClient {
         })
         .await?
     }
+
+    pub(crate) async fn delete_all_words(&self, guild_id: u64) -> RusqliteResult<(), DbError> {
+        let con_arc = Arc::clone(&self.con);
+        task::spawn_blocking(move || {
+            let con_guard = con_arc.lock().unwrap();
+
+            con_guard.execute("DELETE FROM word_chaining WHERE guild_id = ?1",
+                              [guild_id])
+                .ok();
+
+            Ok(())
+        })
+            .await?
+    }
 }

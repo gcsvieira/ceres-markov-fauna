@@ -10,7 +10,7 @@ use crate::Data;
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
-#[poise::command(slash_command, prefix_command, default_member_permissions = "ADMINISTRATOR")]
+#[poise::command(slash_command, default_member_permissions = "ADMINISTRATOR")]
 pub(crate) async fn reset_table(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
@@ -29,6 +29,7 @@ pub(crate) async fn reset_table(
 
     let reply = ctx.send(CreateReply::default()
         .reply(true)
+        .ephemeral(true)
         .content("Are you sure you want to delete all the words stored for this server? This can't be undone you know?!")
         .components(car))
         .await?;
@@ -40,8 +41,10 @@ pub(crate) async fn reset_table(
 
     if let Some(mci) = collector.next().await {
         let content = match mci.data.custom_id.as_str() {
-            "b_confirm" => "Someone confirmed the request!",
-            "b_cancel" => "Someone canceled the request!",
+            "b_confirm" => {
+                ctx.data().db.delete_all_words(ctx.guild_id().unwrap().get()).await?;
+                "Alright! All of the words from this server were erased!"},
+            "b_cancel" => "I'll keep the words then!",
             _ => "Unknown selection!"
         };
 
@@ -49,8 +52,7 @@ pub(crate) async fn reset_table(
             serenity::CreateInteractionResponseMessage::new()
                 .content(content)
                 .components(vec![])
-        ))
-            .await?;
+        )).await?;
     }
     Ok(())
 }
